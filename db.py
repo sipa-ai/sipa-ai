@@ -266,6 +266,7 @@ def init_db():
                 system_prompt TEXT NOT NULL,
                 model TEXT DEFAULT 'claude-sonnet-4-6',
                 is_router BOOLEAN DEFAULT FALSE,
+                tool_set TEXT DEFAULT 'default',
                 created_at TIMESTAMP DEFAULT NOW(),
                 updated_at TIMESTAMP DEFAULT NOW()
             )
@@ -397,6 +398,7 @@ def init_db():
               END IF;
             END $$
         """)
+        cur.execute("ALTER TABLE agents ADD COLUMN IF NOT EXISTS tool_set TEXT DEFAULT 'default'")
 
     _seed_agents()
     _seed_brand()
@@ -1263,38 +1265,38 @@ def get_agent(agent_id: int):
 
 
 def upsert_agent(name: str, description: str, system_prompt: str,
-                 model: str, is_router: bool = False) -> int:
+                 model: str, is_router: bool = False, tool_set: str = "default") -> int:
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("""
-            INSERT INTO agents (name, description, system_prompt, model, is_router)
-            VALUES (%s, %s, %s, %s, %s)
+            INSERT INTO agents (name, description, system_prompt, model, is_router, tool_set)
+            VALUES (%s, %s, %s, %s, %s, %s)
             ON CONFLICT (name) DO UPDATE SET
                 description = EXCLUDED.description,
                 system_prompt = EXCLUDED.system_prompt,
                 model = EXCLUDED.model,
                 updated_at = NOW()
             RETURNING id
-        """, (name, description, system_prompt, model, is_router))
+        """, (name, description, system_prompt, model, is_router, tool_set))
         return cur.fetchone()[0]
 
 
 def update_agent(agent_id: int, description: str, system_prompt: str, model: str,
-                 name: str | None = None):
+                 name: str | None = None, tool_set: str = "default"):
     with get_conn() as conn:
         cur = conn.cursor()
         if name:
             cur.execute("""
                 UPDATE agents SET name = %s, description = %s, system_prompt = %s,
-                                 model = %s, updated_at = NOW()
+                                 model = %s, tool_set = %s, updated_at = NOW()
                 WHERE id = %s
-            """, (name.strip().lower(), description, system_prompt, model, agent_id))
+            """, (name.strip().lower(), description, system_prompt, model, tool_set, agent_id))
         else:
             cur.execute("""
                 UPDATE agents SET description = %s, system_prompt = %s,
-                                 model = %s, updated_at = NOW()
+                                 model = %s, tool_set = %s, updated_at = NOW()
                 WHERE id = %s
-            """, (description, system_prompt, model, agent_id))
+            """, (description, system_prompt, model, tool_set, agent_id))
 
 
 def update_agent_field_by_name(agent_name: str, field: str, new_value: str):

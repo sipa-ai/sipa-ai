@@ -193,6 +193,11 @@ def _build_router_tools(owner_name: str) -> list:
                 "description": {"type": "string", "description": "One-line description shown in routing context"},
                 "system_prompt": {"type": "string", "description": "Complete system prompt generated from the user's description"},
                 "model": {"type": "string", "description": "Model ID — default: claude-sonnet-4-6"},
+                "tool_set": {
+                    "type": "string",
+                    "enum": ["default", "content_writer"],
+                    "description": "Tool set for the agent. 'default' = read-only (tasks, posts). 'content_writer' = can also create and update posts.",
+                },
             },
             "required": ["name", "description", "system_prompt", "model"],
         },
@@ -400,9 +405,11 @@ _DEFAULT_AGENT_TOOLS = [
     },
 ]
 
-# Map specialist agent names to their tool sets.
-# Agents not listed here get _DEFAULT_AGENT_TOOLS (read-only).
-_AGENT_TOOLS: dict[str, list] = {}
+# Map tool_set values (stored in the agents DB table) to their tool lists.
+_TOOL_SETS: dict[str, list] = {
+    "default": _DEFAULT_AGENT_TOOLS,
+    "content_writer": _CONTENT_TOOLS,
+}
 
 
 # ── Tool execution ────────────────────────────────────────────────────────────
@@ -457,7 +464,8 @@ def _execute_tool(name: str, inp: dict) -> str:
         agent_name_slug = inp["name"].strip().lower().replace(" ", "_")
         if db.get_agent_by_name(agent_name_slug):
             return f"An agent named '{agent_name_slug}' already exists. Use update_agent to modify it."
-        db.upsert_agent(agent_name_slug, inp["description"], inp["system_prompt"], inp["model"], is_router=False)
+        tool_set = inp.get("tool_set", "default")
+        db.upsert_agent(agent_name_slug, inp["description"], inp["system_prompt"], inp["model"], is_router=False, tool_set=tool_set)
         return f"Agent '{agent_name_slug}' created successfully."
     if name == "update_agent":
         try:
@@ -535,7 +543,7 @@ async def _call_specialist(agent_name: str, message: str, agent_language: str = 
         return f"No agent named '{agent_name}' found."
 
     system = build_system_prompt(agent_name, extra=f"AGENT_LANGUAGE: {agent_language}")
-    tools = _AGENT_TOOLS.get(agent_name, _DEFAULT_AGENT_TOOLS)
+    tools = _TOOL_SETS.get(agent.get("tool_set", "default"), _DEFAULT_AGENT_TOOLS)
     messages = [{"role": "user", "content": message}]
 
     while True:

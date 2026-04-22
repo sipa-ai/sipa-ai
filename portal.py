@@ -40,6 +40,7 @@ templates = Jinja2Templates(directory="templates")
 templates.env.globals["app_name"] = APP_NAME
 
 CLAUDE_MODELS = db.CLAUDE_MODELS
+TOOL_SETS = ["default", "content_writer"]
 
 
 
@@ -774,7 +775,8 @@ def team_page(request: Request):
 def agent_new(request: Request):
     if r := _guard(request): return r
     return templates.TemplateResponse("agent_edit.html", {
-        "request": request, "agent": None, "models": CLAUDE_MODELS, "error": None,
+        "request": request, "agent": None, "models": CLAUDE_MODELS,
+        "tool_sets": TOOL_SETS, "error": None,
     })
 
 
@@ -785,14 +787,17 @@ def agent_create(
     description: str = Form(""),
     system_prompt: str = Form(...),
     model: str = Form("claude-sonnet-4-6"),
+    tool_set: str = Form("default"),
 ):
     if r := _guard(request): return r
     if model not in CLAUDE_MODELS:
         return templates.TemplateResponse("agent_edit.html", {
             "request": request, "agent": None, "models": CLAUDE_MODELS,
-            "error": "Invalid model selected.",
+            "tool_sets": TOOL_SETS, "error": "Invalid model selected.",
         })
-    db.upsert_agent(name.strip().lower(), description, system_prompt, model, is_router=False)
+    if tool_set not in TOOL_SETS:
+        tool_set = "default"
+    db.upsert_agent(name.strip().lower(), description, system_prompt, model, is_router=False, tool_set=tool_set)
     return RedirectResponse("/team", status_code=302)
 
 
@@ -803,7 +808,8 @@ def agent_edit(agent_id: int, request: Request):
     if not agent:
         return HTMLResponse("Agent not found", status_code=404)
     return templates.TemplateResponse("agent_edit.html", {
-        "request": request, "agent": agent, "models": CLAUDE_MODELS, "error": None,
+        "request": request, "agent": agent, "models": CLAUDE_MODELS,
+        "tool_sets": TOOL_SETS, "error": None,
     })
 
 
@@ -815,15 +821,18 @@ def agent_update(
     description: str = Form(""),
     system_prompt: str = Form(...),
     model: str = Form("claude-sonnet-4-6"),
+    tool_set: str = Form("default"),
 ):
     if r := _guard(request): return r
     if model not in CLAUDE_MODELS:
         agent = db.get_agent(agent_id)
         return templates.TemplateResponse("agent_edit.html", {
             "request": request, "agent": agent, "models": CLAUDE_MODELS,
-            "error": "Invalid model selected.",
+            "tool_sets": TOOL_SETS, "error": "Invalid model selected.",
         })
-    db.update_agent(agent_id, description, system_prompt, model, name=name or None)
+    if tool_set not in TOOL_SETS:
+        tool_set = "default"
+    db.update_agent(agent_id, description, system_prompt, model, name=name or None, tool_set=tool_set)
     return RedirectResponse("/team", status_code=302)
 
 
