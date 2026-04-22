@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block title %}Contacts — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <h2 class="text-xl font-semibold text-stone-800">Contacts</h2>
+</div>
+
+{% if saved %}
+<div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Saved.</div>
+{% endif %}
+{% if error %}
+<div class="mb-4 px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{{ error }}</div>
+{% endif %}
+
+<!-- Add contact form -->
+<div class="bg-white rounded-xl border border-stone-200 shadow-sm p-4 mb-6">
+  <h3 class="text-sm font-medium text-stone-700 mb-3">Add contact</h3>
+  <form method="post" action="/contacts/new" class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+    <input name="name" required placeholder="Last name *"
+      class="border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+    <input name="first_name" placeholder="First name"
+      class="border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+    <input name="company" placeholder="Company / venue"
+      class="border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+    <input name="email" type="email" placeholder="Email"
+      class="border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+    <select name="correspondence_language"
+      class="border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400 text-stone-500">
+      <option value="">Language —</option>
+      <option value="ar">Arabic (ar)</option>
+      <option value="en">English (en)</option>
+      <option value="es">Spanish (es)</option>
+      <option value="fr">French (fr)</option>
+      <option value="de">German (de)</option>
+    </select>
+    <div class="col-span-2 sm:col-span-5 flex justify-end">
+      <button type="submit"
+        class="text-sm bg-stone-800 text-white px-4 py-2 rounded-lg hover:bg-stone-700 transition">Add</button>
+    </div>
+  </form>
+</div>
+
+<!-- Mobile: cards -->
+<div class="md:hidden space-y-3">
+  {% for c in contacts %}
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-4">
+    <div class="flex items-start justify-between gap-2">
+      <div>
+        <p class="font-medium text-stone-800">{{ c.first_name or '' }} {{ c.name }}</p>
+        {% if c.company %}<p class="text-xs text-stone-500">{{ c.company }}</p>{% endif %}
+        {% if c.email %}<p class="text-xs text-stone-400">{{ c.email }}</p>{% endif %}
+      </div>
+      <div class="flex gap-2 shrink-0">
+        <a href="/contacts/{{ c.id }}/edit"
+          class="text-xs border border-stone-200 text-stone-600 px-2.5 py-1 rounded-lg hover:bg-stone-50 transition">Edit</a>
+        <form method="post" action="/contacts/{{ c.id }}/delete"
+          onsubmit="return confirm('Delete this contact?')">
+          <button type="submit"
+            class="text-xs border border-red-200 text-red-500 px-2.5 py-1 rounded-lg hover:bg-red-50 transition">Delete</button>
+        </form>
+      </div>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-center text-stone-400 py-10">No contacts yet.</p>
+  {% endfor %}
+</div>
+
+<!-- Desktop: table -->
+<div class="hidden md:block overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
+  <table class="w-full text-sm">
+    <thead class="bg-stone-100 text-stone-600 text-xs uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left">Last name</th>
+        <th class="px-4 py-3 text-left">First name</th>
+        <th class="px-4 py-3 text-left">Company</th>
+        <th class="px-4 py-3 text-left">Email</th>
+        <th class="px-4 py-3 text-left">Lang</th>
+        <th class="px-4 py-3 text-left"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-stone-100">
+      {% for c in contacts %}
+      <tr class="hover:bg-stone-50 align-middle">
+        <td class="px-4 py-3 font-medium text-stone-800">{{ c.name }}</td>
+        <td class="px-4 py-3 text-stone-600">{{ c.first_name or '—' }}</td>
+        <td class="px-4 py-3 text-stone-600">{{ c.company or '—' }}</td>
+        <td class="px-4 py-3 text-stone-500">{{ c.email or '—' }}</td>
+        <td class="px-4 py-3 text-stone-400 text-xs">{{ c.correspondence_language or '—' }}</td>
+        <td class="px-4 py-3">
+          <div class="flex items-center gap-2">
+            <a href="/contacts/{{ c.id }}/edit"
+              class="text-xs border border-stone-200 text-stone-600 px-2.5 py-1 rounded-lg hover:bg-stone-50 transition">Edit</a>
+            <form method="post" action="/contacts/{{ c.id }}/delete"
+              onsubmit="return confirm('Delete this contact?')">
+              <button type="submit"
+                class="text-xs border border-red-200 text-red-500 px-2.5 py-1 rounded-lg hover:bg-red-50 transition">Delete</button>
+            </form>
+          </div>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="px-4 py-10 text-center text-stone-400">No contacts yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

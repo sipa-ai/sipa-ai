@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Email History — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-6">
+  <h2 class="text-xl font-semibold text-stone-800">Emails</h2>
+  <span class="text-xs text-stone-400">Sent &amp; received · newest first</span>
+</div>
+
+<!-- Mobile: cards -->
+<div class="md:hidden space-y-3">
+  {% for e in emails %}
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-4">
+    <div class="flex items-start justify-between gap-2 mb-2">
+      <div class="flex items-center gap-2 min-w-0">
+        {% if e.direction == 'sent' %}
+        <span class="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-500">↑ Sent</span>
+        {% else %}
+        <span class="shrink-0 px-1.5 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">↓ Received</span>
+        {% endif %}
+        <p class="font-medium text-stone-800 text-sm truncate">{{ e.correspondent_name or e.correspondent_email }}</p>
+      </div>
+      <span class="text-xs text-stone-400 shrink-0">{{ e.date.strftime('%d %b %H:%M') if e.date else '—' }}</span>
+    </div>
+    <p class="text-sm font-medium text-stone-700 mb-1">{{ e.subject or '—' }}</p>
+    {% if e.body_preview %}
+    <p class="text-xs text-stone-500 line-clamp-2">{{ e.body_preview }}</p>
+    {% endif %}
+    {% if e.provider_message_id and e.provider == 'gmail' %}
+    <a href="https://mail.google.com/mail/u/0/#sent/{{ e.provider_message_id }}"
+       target="_blank" class="text-xs text-amber-600 hover:text-amber-800 mt-1 block">View in Gmail →</a>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="text-center text-stone-400 py-10">No emails yet.</p>
+  {% endfor %}
+</div>
+
+<!-- Desktop: table -->
+<div class="hidden md:block overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
+  <table class="w-full text-sm">
+    <thead class="bg-stone-100 text-stone-600 text-xs uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left w-28">Date</th>
+        <th class="px-4 py-3 text-left w-20">Direction</th>
+        <th class="px-4 py-3 text-left">Contact</th>
+        <th class="px-4 py-3 text-left">Subject</th>
+        <th class="px-4 py-3 text-left">Preview</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-stone-100">
+      {% for e in emails %}
+      <tr class="hover:bg-stone-50 align-top">
+        <td class="px-4 py-3 text-stone-400 whitespace-nowrap text-xs font-mono">
+          {{ e.date.strftime('%d %b %Y %H:%M') if e.date else '—' }}
+        </td>
+        <td class="px-4 py-3">
+          {% if e.direction == 'sent' %}
+          <span class="px-2 py-0.5 rounded text-xs font-medium bg-stone-100 text-stone-500">↑ Sent</span>
+          {% else %}
+          <span class="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-700">↓ Received</span>
+          {% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <p class="font-medium text-stone-800">{{ e.correspondent_name or '—' }}</p>
+          <p class="text-xs text-stone-400">{{ e.correspondent_email or '' }}</p>
+        </td>
+        <td class="px-4 py-3 text-stone-700 max-w-[180px] truncate">{{ e.subject or '—' }}</td>
+        <td class="px-4 py-3 text-stone-500 text-xs max-w-xs truncate">{{ e.body_preview or '—' }}</td>
+        <td class="px-4 py-3 text-right">
+          {% if e.provider_message_id and e.provider == 'gmail' %}
+          <a href="https://mail.google.com/mail/u/0/#sent/{{ e.provider_message_id }}"
+             target="_blank" class="text-xs text-amber-600 hover:text-amber-800 whitespace-nowrap">Gmail →</a>
+          {% endif %}
+          {% if e.task_id %}
+          <a href="/tasks/{{ e.task_id }}" class="text-xs text-stone-400 hover:text-stone-600 whitespace-nowrap ml-2">Task →</a>
+          {% endif %}
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="6" class="px-4 py-10 text-center text-stone-400">No emails yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}New Project — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center gap-3 mb-6">
+  <a href="/projects" class="text-stone-400 hover:text-stone-600 text-sm">← Projects</a>
+  <h2 class="text-xl font-semibold text-stone-800">New Project</h2>
+</div>
+
+<div class="max-w-lg">
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
+    <form method="post" action="/projects/new" class="space-y-4">
+      <div>
+        <label class="block text-xs text-stone-500 mb-1">Name <span class="text-red-400">*</span></label>
+        <input name="name" required autofocus
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+      </div>
+      <div>
+        <label class="block text-xs text-stone-500 mb-1">Description</label>
+        <input name="description"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+      </div>
+      <div>
+        <label class="block text-xs text-stone-500 mb-1">Status</label>
+        <select name="status"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400">
+          {% for s in statuses %}
+          <option value="{{ s }}" {% if s == 'planning' %}selected{% endif %}>{{ s.title() }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs text-stone-500 mb-1">Deadline</label>
+        <input name="deadline" type="date"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+      </div>
+      <button type="submit"
+        class="w-full text-sm bg-stone-800 text-white px-4 py-2 rounded-lg hover:bg-stone-700 transition">
+        Create project
+      </button>
+    </form>
+  </div>
+</div>
+{% endblock %}

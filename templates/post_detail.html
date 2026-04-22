@@ -1,0 +1,277 @@
+{% extends "base.html" %}
+{% block title %}{{ post.date }} — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="mb-6"><a href="/posts" class="text-stone-500 hover:text-stone-800 text-sm">← All posts</a></div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+
+  <!-- Media -->
+  <div>
+    {% if post.format == 'reel' %}
+      {% if post.video_bytes %}
+      <video src="/posts/{{ post.id }}/video" controls playsinline
+             class="w-full rounded-xl shadow" style="aspect-ratio:9/16; max-height:640px; object-fit:cover;"></video>
+      {% else %}
+      <div class="w-full bg-stone-100 rounded-xl flex flex-col items-center justify-center text-stone-400 gap-2"
+           style="aspect-ratio:9/16; max-height:640px;">
+        <svg xmlns="http://www.w3.org/2000/svg" class="w-10 h-10 opacity-40" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M15 10l4.553-2.277A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M4 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H6a2 2 0 01-2-2V8z"/>
+        </svg>
+        <span class="text-sm">No video yet</span>
+      </div>
+      {% endif %}
+    {% elif post.format == 'static' %}
+      {% if post.image_bytes %}
+      <img src="/posts/{{ post.id }}/image" class="w-full rounded-xl shadow aspect-square object-cover">
+      {% else %}
+      <div class="w-full aspect-square bg-stone-100 rounded-xl flex items-center justify-center text-stone-400">No image yet</div>
+      {% endif %}
+    {% else %}
+      {% if slides %}
+      <div class="grid grid-cols-2 gap-2">
+        {% for slide in slides %}
+        <div class="relative">
+          {% if slide.has_image %}
+          <img src="/slides/{{ slide.id }}/image" class="w-full aspect-square object-cover rounded-lg shadow-sm">
+          {% else %}
+          <div class="w-full aspect-square bg-stone-100 rounded-lg flex items-center justify-center text-stone-400 text-xs">Slide {{ slide.slide_number }}</div>
+          {% endif %}
+          <span class="absolute top-1 left-1 bg-black/50 text-white text-xs px-1.5 py-0.5 rounded">{{ slide.slide_number }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="w-full aspect-square bg-stone-100 rounded-xl flex items-center justify-center text-stone-400">No slides yet</div>
+      {% endif %}
+    {% endif %}
+  </div>
+
+  <!-- Details -->
+  <div class="space-y-5">
+    {% if saved %}
+    <div class="px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Saved.</div>
+    {% endif %}
+
+    <div>
+      <div class="flex flex-wrap items-center gap-2 mb-2">
+        <span class="font-mono text-stone-500 text-sm">{{ post.date }}</span>
+        <span class="px-2 py-0.5 rounded text-xs font-medium
+          {% if post.pillar == 'ROOTS' %}bg-amber-100 text-amber-800
+          {% elif post.pillar == 'CULTURE' %}bg-sky-100 text-sky-800
+          {% elif post.pillar == 'MOTHERS' %}bg-rose-100 text-rose-800
+          {% elif post.pillar == 'EVENT' %}bg-purple-100 text-purple-800
+          {% else %}bg-stone-100 text-stone-500{% endif %}">{{ post.pillar }}</span>
+        <span class="px-2 py-0.5 rounded text-xs bg-stone-100 text-stone-500 capitalize">{{ post.format }}</span>
+        {% for ch in channels %}
+          {% if ch == 'instagram' %}<span class="px-2 py-0.5 rounded text-xs bg-amber-100 text-amber-800">Instagram</span>
+          {% elif ch == 'linkedin_post' %}<span class="px-2 py-0.5 rounded text-xs bg-blue-100 text-blue-800">LinkedIn Post</span>
+          {% elif ch == 'linkedin_article' %}<span class="px-2 py-0.5 rounded text-xs bg-indigo-100 text-indigo-800">LinkedIn Article</span>
+          {% endif %}
+        {% endfor %}
+      </div>
+      <h2 class="text-lg font-semibold">{{ post.theme }}</h2>
+    </div>
+
+    {% if post.format != 'reel' %}
+    <!-- Image style type -->
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">Image style</p>
+      <form method="post" action="/posts/{{ post.id }}/style" class="flex gap-2">
+        <select name="image_style_type" class="border border-stone-200 rounded-lg text-sm px-3 py-1.5 bg-white">
+          <option value="realistic" {% if post.image_style_type == 'realistic' %}selected{% endif %}>Realistic (Imagen 4)</option>
+          <option value="artistic" {% if post.image_style_type == 'artistic' %}selected{% endif %}>Artistic (Flash)</option>
+        </select>
+        <button class="bg-stone-700 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-stone-600">Save</button>
+      </form>
+      {% if post.image_model_used %}
+      <p class="text-xs text-stone-400 mt-1">Last generated with: <code class="bg-stone-100 px-1 rounded">{{ post.image_model_used }}</code></p>
+      {% endif %}
+    </div>
+
+    <!-- Image prompt -->
+    {% if post.image_prompt or post.image_style %}
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">Image prompt</p>
+      <p class="text-sm text-stone-600 bg-stone-50 rounded-lg p-3 leading-relaxed">{{ post.image_prompt or post.image_style }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Prompt sent -->
+    {% if post.image_prompt_sent and post.image_prompt_sent != post.image_prompt %}
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">Prompt sent to API</p>
+      <p class="text-xs text-stone-500 bg-stone-50 rounded-lg p-3 leading-relaxed font-mono">{{ post.image_prompt_sent }}</p>
+    </div>
+    {% endif %}
+    {% endif %}
+
+    {% if post.format == 'reel' %}
+    <!-- Video prompt -->
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">Veo prompt</p>
+      {% if post.video_prompt %}
+      <p class="text-sm text-stone-600 bg-stone-50 rounded-lg p-3 leading-relaxed whitespace-pre-wrap">{{ post.video_prompt }}</p>
+      {% else %}
+      <p class="text-sm text-stone-400 italic">No concept yet — generate one below.</p>
+      {% endif %}
+    </div>
+
+    <!-- Reel actions -->
+    <div class="flex flex-wrap items-center gap-3">
+      {% if not post.video_prompt %}
+      <form method="post" action="/posts/{{ post.id }}/reel-concept">
+        <button class="px-4 py-2 rounded-lg text-sm bg-teal-700 text-white hover:bg-teal-600">Generate concept</button>
+      </form>
+      {% else %}
+      <form method="post" action="/posts/{{ post.id }}/reel-concept">
+        <button class="px-4 py-2 rounded-lg text-sm bg-stone-200 text-stone-700 hover:bg-stone-300">Regenerate concept</button>
+      </form>
+      {% if not post.video_bytes %}
+      <form method="post" action="/posts/{{ post.id }}/generate-video">
+        <button class="px-4 py-2 rounded-lg text-sm bg-amber-700 text-white hover:bg-amber-600">Generate video</button>
+      </form>
+      {% else %}
+      <form method="post" action="/posts/{{ post.id }}/generate-video">
+        <button class="px-4 py-2 rounded-lg text-sm bg-stone-200 text-stone-700 hover:bg-stone-300">Regenerate video</button>
+      </form>
+      {% if post.video_generated_at %}
+      <span class="text-xs text-stone-400">Generated {{ post.video_generated_at.strftime('%d %b %Y') }}</span>
+      {% endif %}
+      {% endif %}
+      {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Caption -->
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">Caption</p>
+      {% if post.caption %}
+      <div class="text-sm text-stone-700 bg-stone-50 rounded-lg p-3 leading-relaxed whitespace-pre-wrap max-h-56 overflow-y-auto">{{ post.caption }}</div>
+      {% else %}
+      <p class="text-sm text-stone-400 italic">Not generated yet.</p>
+      {% endif %}
+    </div>
+
+    <!-- Slides -->
+    {% if slides %}
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">Slides</p>
+      <div class="space-y-2">
+        {% for slide in slides %}
+        <div class="flex items-start gap-3 bg-stone-50 rounded-lg p-3">
+          <span class="text-xs font-mono text-stone-400 mt-0.5 w-4 shrink-0">{{ slide.slide_number }}</span>
+          <div class="flex-1">
+            <p class="text-sm font-medium text-stone-700">{{ slide.title_en or '—' }}</p>
+            <p class="text-xs text-stone-500 mt-0.5">{{ slide.content or '' }}</p>
+          </div>
+          <span class="{% if slide.has_image %}text-green-500{% else %}text-stone-300{% endif %} text-xs shrink-0">{% if slide.has_image %}✓{% else %}—{% endif %}</span>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- LinkedIn content -->
+    {% if 'linkedin_post' in channels or 'linkedin_article' in channels %}
+    <div class="border-t border-stone-100 pt-5 space-y-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-blue-600">LinkedIn</p>
+
+      {% if 'linkedin_post' in channels %}
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">LinkedIn caption</p>
+        {% if post.linkedin_caption %}
+        <div class="text-sm text-stone-700 bg-blue-50 rounded-lg p-3 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">{{ post.linkedin_caption }}</div>
+        {% else %}
+        <p class="text-sm text-stone-400 italic">Not generated yet.</p>
+        {% endif %}
+      </div>
+      {% endif %}
+
+      {% if 'linkedin_article' in channels %}
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">Article title</p>
+        {% if post.linkedin_title %}
+        <p class="text-sm font-medium text-stone-800 bg-indigo-50 rounded-lg px-3 py-2">{{ post.linkedin_title }}</p>
+        {% else %}
+        <p class="text-sm text-stone-400 italic">Not generated yet.</p>
+        {% endif %}
+      </div>
+      {% if post.linkedin_article_body %}
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">Article body</p>
+        <div class="text-sm text-stone-700 bg-indigo-50 rounded-lg p-3 leading-relaxed whitespace-pre-wrap max-h-56 overflow-y-auto">{{ post.linkedin_article_body }}</div>
+        <p class="text-xs text-stone-400 mt-1">Articles must be published manually on LinkedIn (API restriction).</p>
+      </div>
+      {% endif %}
+      {% endif %}
+
+      <div class="flex flex-wrap gap-3">
+        <form method="post" action="/posts/{{ post.id }}/generate-linkedin">
+          <button class="px-4 py-2 rounded-lg text-sm bg-blue-700 text-white hover:bg-blue-800">
+            {% if post.linkedin_caption or post.linkedin_title %}Regenerate LinkedIn{% else %}Generate LinkedIn{% endif %}
+          </button>
+        </form>
+
+        {% if 'linkedin_post' in channels and post.linkedin_caption %}
+          {% if post.linkedin_posted_at %}
+          <span class="px-3 py-2 rounded-lg text-sm bg-stone-100 text-stone-500">
+            Posted to LinkedIn {{ post.linkedin_posted_at.strftime('%d %b %Y') }}
+          </span>
+          {% elif linkedin_connected %}
+          <form method="post" action="/posts/{{ post.id }}/post-linkedin">
+            <button class="px-4 py-2 rounded-lg text-sm bg-blue-900 text-white hover:bg-blue-800">
+              Post to LinkedIn
+            </button>
+          </form>
+          {% else %}
+          <a href="/settings/linkedin" class="px-4 py-2 rounded-lg text-sm border border-blue-200 text-blue-700 hover:bg-blue-50">
+            Connect LinkedIn account →
+          </a>
+          {% endif %}
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <!-- Approve / status -->
+    <div class="flex items-center gap-3 pt-2">
+      {% if post.posted_at %}
+      <span class="px-3 py-1.5 rounded-lg text-sm bg-stone-100 text-stone-500">Sent {{ post.posted_at.strftime('%d %b %Y') }}</span>
+      {% elif post.approved %}
+      <form method="post" action="/posts/{{ post.id }}/unapprove">
+        <button class="px-4 py-2 rounded-lg text-sm bg-stone-200 text-stone-700 hover:bg-stone-300">Unapprove</button>
+      </form>
+      <span class="px-3 py-1.5 rounded-lg text-sm bg-green-100 text-green-800">Approved — sends {{ post.date }}</span>
+      {% else %}
+      <form method="post" action="/posts/{{ post.id }}/approve">
+        <button class="px-4 py-2 rounded-lg text-sm bg-stone-800 text-white hover:bg-stone-700">Approve &amp; generate</button>
+      </form>
+      {% endif %}
+    </div>
+
+    <!-- Project -->
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">Project</p>
+      {% if post.project_name %}
+      <div class="mb-2">
+        <a href="/projects/{{ post.project_id }}" class="text-sm font-medium text-amber-600 hover:text-amber-800 border border-amber-200 px-2 py-0.5 rounded">{{ post.project_name }}</a>
+      </div>
+      {% endif %}
+      <form method="post" action="/posts/{{ post.id }}/set-project" class="flex gap-2">
+        <select name="project_id"
+          class="flex-1 border border-stone-200 rounded-lg text-sm px-2 py-1.5 bg-white text-stone-700 focus:outline-none focus:ring-1 focus:ring-amber-400">
+          <option value="">— No project —</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" {% if post.project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit"
+          class="text-sm bg-stone-800 text-white px-3 py-1.5 rounded-lg hover:bg-stone-700 transition">Set</button>
+      </form>
+    </div>
+
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+{% block title %}Edit Contact — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="max-w-lg">
+  <div class="flex items-center gap-3 mb-6">
+    <a href="/contacts" class="text-stone-400 hover:text-stone-600 text-sm">← Contacts</a>
+    <h2 class="text-xl font-semibold text-stone-800">Edit contact</h2>
+  </div>
+
+  {% if saved %}
+  <div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Saved.</div>
+  {% endif %}
+
+  <form method="post" action="/contacts/{{ contact.id }}/edit"
+    class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 space-y-4">
+    <div>
+      <label class="block text-xs font-medium text-stone-600 mb-1">Last name *</label>
+      <input name="name" required value="{{ contact.name }}"
+        class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-stone-600 mb-1">First name</label>
+      <input name="first_name" value="{{ contact.first_name or '' }}"
+        class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-stone-600 mb-1">Company / venue</label>
+      <input name="company" value="{{ contact.company or '' }}"
+        class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-stone-600 mb-1">Email</label>
+      <input name="email" type="email" value="{{ contact.email or '' }}"
+        class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+    </div>
+    <div>
+      <label class="block text-xs font-medium text-stone-600 mb-1">Correspondence language</label>
+      <select name="correspondence_language"
+        class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+        <option value="">— not set —</option>
+        <option value="ar" {% if contact.correspondence_language == 'ar' %}selected{% endif %}>Arabic (ar)</option>
+        <option value="en" {% if contact.correspondence_language == 'en' %}selected{% endif %}>English (en)</option>
+        <option value="es" {% if contact.correspondence_language == 'es' %}selected{% endif %}>Spanish (es)</option>
+        <option value="fr" {% if contact.correspondence_language == 'fr' %}selected{% endif %}>French (fr)</option>
+        <option value="de" {% if contact.correspondence_language == 'de' %}selected{% endif %}>German (de)</option>
+      </select>
+      <p class="text-xs text-stone-400 mt-1">Language the agent uses when drafting emails to this contact.</p>
+    </div>
+    {% if email_accounts %}
+    <div>
+      <label class="block text-xs font-medium text-stone-600 mb-1">Preferred sending account</label>
+      <select name="preferred_email_account_id"
+        class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+        <option value="">— use default —</option>
+        {% for acc in email_accounts %}
+        <option value="{{ acc.id }}"
+          {% if contact.preferred_email_account_id == acc.id %}selected{% endif %}>
+          {{ acc.label or acc.email or acc.provider ~ ' #' ~ acc.id }}
+          ({{ acc.provider }}){% if acc.is_default %} ★{% endif %}
+        </option>
+        {% endfor %}
+      </select>
+      <p class="text-xs text-stone-400 mt-1">Override which account sends emails to this contact.</p>
+    </div>
+    {% endif %}
+    <div class="flex gap-3 pt-2">
+      <button type="submit"
+        class="bg-stone-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-stone-700 transition">Save</button>
+      <a href="/contacts"
+        class="border border-stone-200 text-stone-600 text-sm px-4 py-2 rounded-lg hover:bg-stone-50 transition">Cancel</a>
+    </div>
+  </form>
+
+  <!-- Email thread -->
+  {% if email_thread %}
+  <div class="mt-6 bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-stone-700 mb-3">Email history</h3>
+    <div class="space-y-3">
+      {% for msg in email_thread %}
+      <div class="border rounded-lg p-3 {% if msg.direction == 'sent' %}border-stone-100 bg-stone-50{% else %}border-green-100 bg-green-50{% endif %}">
+        <div class="flex items-start justify-between gap-2 mb-1">
+          <div class="flex items-center gap-2 min-w-0">
+            {% if msg.direction == 'sent' %}
+            <span class="shrink-0 text-xs font-medium text-stone-400">↑ Sent</span>
+            {% else %}
+            <span class="shrink-0 text-xs font-medium text-green-700">↓ Received</span>
+            {% endif %}
+            <p class="text-sm font-medium text-stone-800 truncate">{{ msg.subject or '(no subject)' }}</p>
+          </div>
+          <p class="text-xs text-stone-400 shrink-0 font-mono">{{ msg.date.strftime('%d %b %Y') if msg.date else '' }}</p>
+        </div>
+        {% if msg.body %}
+        <pre class="text-xs text-stone-600 whitespace-pre-wrap font-sans max-h-28 overflow-y-auto mt-2">{{ msg.body }}</pre>
+        {% elif msg.body_preview %}
+        <p class="text-xs text-stone-500 mt-1 line-clamp-2">{{ msg.body_preview }}</p>
+        {% endif %}
+        <div class="flex gap-3 mt-1">
+          {% if msg.provider_message_id and msg.provider == 'gmail' %}
+          <a href="https://mail.google.com/mail/u/0/#sent/{{ msg.provider_message_id }}"
+             target="_blank" class="text-xs text-amber-600 hover:text-amber-800">View in Gmail →</a>
+          {% endif %}
+          {% if msg.task_id %}
+          <a href="/tasks/{{ msg.task_id }}" class="text-xs text-stone-400 hover:text-stone-600">Task →</a>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

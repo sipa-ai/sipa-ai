@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Gmail Settings — {{ app_name }}{% endblock %}
+{% block content %}
+
+<h2 class="text-xl font-semibold text-stone-800 mb-6">Settings — Gmail accounts</h2>
+
+{% if saved %}
+<div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Saved.</div>
+{% endif %}
+{% if error %}
+<div class="mb-4 px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{{ error }}</div>
+{% endif %}
+
+<div class="max-w-2xl space-y-4">
+
+  <!-- Existing accounts -->
+  {% for account in accounts %}
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-5 flex items-center justify-between gap-4">
+    <div class="min-w-0">
+      <p class="text-sm font-medium text-stone-800 truncate">
+        {{ account.label or account.email or "Account #" ~ account.id }}
+      </p>
+      {% if account.email and account.label %}
+      <p class="text-xs text-stone-400 mt-0.5">{{ account.email }}</p>
+      {% endif %}
+    </div>
+    <div class="flex items-center gap-3 shrink-0">
+      {% if account.access_token %}
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+        <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Connected
+      </span>
+      {% else %}
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stone-100 text-stone-500 rounded-full text-xs font-medium">
+        <span class="w-1.5 h-1.5 bg-stone-400 rounded-full"></span> Not connected
+      </span>
+      {% endif %}
+      <a href="/settings/gmail/{{ account.id }}"
+        class="text-sm border border-stone-200 text-stone-600 px-3 py-1.5 rounded-lg hover:bg-stone-50 transition">
+        Manage
+      </a>
+    </div>
+  </div>
+  {% else %}
+  <p class="text-sm text-stone-400">No Gmail accounts configured yet.</p>
+  {% endfor %}
+
+  <!-- Add new account -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Add a Gmail account</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      Each account needs its own OAuth 2.0 Client ID from Google Cloud Console.
+      You can use one Google Cloud project per Workspace domain.
+    </p>
+    <form method="post" action="/settings/gmail/new" class="space-y-3">
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">Label <span class="text-stone-400">(optional)</span></label>
+        <input name="label"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400"
+          placeholder="e.g. Your Name — you@example.com">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">Client ID</label>
+        <input name="client_id" required
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400 font-mono"
+          placeholder="xxxxx.apps.googleusercontent.com">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">Client secret</label>
+        <input name="client_secret" required
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400 font-mono"
+          placeholder="GOCSPX-…">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">
+          Callback URL <span class="text-stone-400">(leave blank to use the default)</span>
+        </label>
+        <input name="callback_url"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400 font-mono"
+          placeholder="https://YOUR_DOMAIN/settings/gmail/callback">
+      </div>
+      <button type="submit"
+        class="text-sm bg-stone-800 text-white px-4 py-2 rounded-lg hover:bg-stone-700 transition">
+        Add account
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

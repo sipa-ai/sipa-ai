@@ -1,0 +1,280 @@
+{% extends "base.html" %}
+{% block title %}{{ task.name }} — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center gap-3 mb-6">
+  <a href="/tasks" class="text-stone-400 hover:text-stone-600 text-sm">← Tasks</a>
+  {% if task.project_name %}
+  <a href="/projects/{{ task.project_id }}" class="text-xs text-amber-600 hover:text-amber-800 border border-amber-200 px-2 py-0.5 rounded">{{ task.project_name }}</a>
+  {% endif %}
+  <h2 class="text-xl font-semibold text-stone-800">{{ task.name }}</h2>
+  <span class="px-2 py-0.5 rounded text-xs font-medium
+    {% if task.priority == 'URGENT' %}bg-red-100 text-red-800
+    {% elif task.priority == 'HIGH' %}bg-orange-100 text-orange-800
+    {% elif task.priority == 'MEDIUM' %}bg-yellow-100 text-yellow-800
+    {% else %}bg-stone-100 text-stone-500{% endif %}">{{ task.priority or 'MEDIUM' }}</span>
+</div>
+
+{% if saved %}
+<div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Saved.</div>
+{% endif %}
+{% if generating %}
+<div class="mb-4 px-4 py-2 bg-blue-50 border border-blue-200 text-blue-700 rounded-lg text-sm">
+  Generating draft… refresh in a few seconds.
+</div>
+{% endif %}
+
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+  <!-- Left: task info + contact link -->
+  <div class="space-y-4">
+
+    <!-- Task details -->
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-4">
+      <h3 class="text-sm font-semibold text-stone-700 mb-3">Task details</h3>
+      <dl class="space-y-2 text-sm">
+        <div class="flex justify-between">
+          <dt class="text-stone-500">Status</dt>
+          <dd>
+            <form method="post" action="/tasks/{{ task.id }}/status" class="flex items-center gap-1">
+              <select name="status"
+                class="border border-stone-200 rounded text-xs px-1.5 py-1 bg-white text-stone-700 focus:outline-none focus:ring-1 focus:ring-amber-400">
+                {% for s in statuses %}
+                <option value="{{ s }}" {% if task.status == s %}selected{% endif %}>{{ s.replace('_', ' ').title() }}</option>
+                {% endfor %}
+              </select>
+              <button type="submit"
+                class="text-xs bg-stone-700 text-white px-2 py-1 rounded hover:bg-stone-600 transition">Save</button>
+            </form>
+          </dd>
+        </div>
+        {% if task.deadline %}
+        <div class="flex justify-between">
+          <dt class="text-stone-500">Deadline</dt>
+          <dd class="font-mono text-xs text-stone-600">{{ task.deadline }}</dd>
+        </div>
+        {% endif %}
+        {% if task.role %}
+        <div class="flex justify-between">
+          <dt class="text-stone-500">Role</dt>
+          <dd class="text-stone-600">{{ task.role }}</dd>
+        </div>
+        {% endif %}
+        {% if task.notes %}
+        <div>
+          <dt class="text-stone-500 mb-1">Notes</dt>
+          <dd class="text-stone-600 text-xs">{{ task.notes }}</dd>
+        </div>
+        {% endif %}
+      </dl>
+    </div>
+
+    <!-- Assign project -->
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-4">
+      <h3 class="text-sm font-semibold text-stone-700 mb-3">Project</h3>
+      {% if task.project_name %}
+      <div class="mb-3 p-3 bg-stone-50 rounded-lg text-sm">
+        <a href="/projects/{{ task.project_id }}" class="font-medium text-stone-800 hover:text-amber-600">{{ task.project_name }}</a>
+      </div>
+      {% endif %}
+      <form method="post" action="/tasks/{{ task.id }}/set-project" class="flex gap-2">
+        <select name="project_id"
+          class="flex-1 border border-stone-200 rounded-lg text-sm px-2 py-1.5 bg-white text-stone-700 focus:outline-none focus:ring-1 focus:ring-amber-400">
+          <option value="">— No project —</option>
+          {% for p in projects %}
+          <option value="{{ p.id }}" {% if task.project_id == p.id %}selected{% endif %}>{{ p.name }}</option>
+          {% endfor %}
+        </select>
+        <button type="submit"
+          class="text-sm bg-stone-800 text-white px-3 py-1.5 rounded-lg hover:bg-stone-700 transition">Set</button>
+      </form>
+      {% if not projects %}
+      <p class="text-xs text-stone-400 mt-2"><a href="/projects/new" class="underline">Create a project</a> first.</p>
+      {% endif %}
+    </div>
+
+    <!-- Link contact -->
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-4">
+      <h3 class="text-sm font-semibold text-stone-700 mb-3">Linked contact</h3>
+      {% if task.contact_name %}
+      <div class="mb-3 p-3 bg-stone-50 rounded-lg text-sm">
+        <p class="font-medium text-stone-800">{{ task.contact_first_name or '' }} {{ task.contact_name }}</p>
+        {% if task.contact_company %}<p class="text-xs text-stone-500">{{ task.contact_company }}</p>{% endif %}
+        {% if task.contact_email %}<p class="text-xs text-stone-400">{{ task.contact_email }}</p>{% endif %}
+      </div>
+      {% endif %}
+      <form method="post" action="/tasks/{{ task.id }}/link-contact" class="flex gap-2">
+        <select name="contact_id"
+          class="flex-1 border border-stone-200 rounded-lg text-sm px-2 py-1.5 bg-white text-stone-700 focus:outline-none focus:ring-1 focus:ring-amber-400">
+          <option value="">— No contact —</option>
+          {% for c in contacts %}
+          <option value="{{ c.id }}" {% if task.contact_id == c.id %}selected{% endif %}>
+            {{ c.first_name or '' }} {{ c.name }}{% if c.company %} ({{ c.company }}){% endif %}
+          </option>
+          {% endfor %}
+        </select>
+        <button type="submit"
+          class="text-sm bg-stone-800 text-white px-3 py-1.5 rounded-lg hover:bg-stone-700 transition">Link</button>
+      </form>
+      {% if not contacts %}
+      <p class="text-xs text-stone-400 mt-2"><a href="/contacts" class="underline">Add contacts</a> first.</p>
+      {% endif %}
+    </div>
+
+  </div>
+
+  <!-- Right: email workflow -->
+  <div class="lg:col-span-2 space-y-4">
+
+    {% set es = task.email_status or 'no_draft' %}
+
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-4">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-sm font-semibold text-stone-700">Email</h3>
+        <span class="px-2 py-0.5 rounded text-xs font-medium
+          {% if es == 'no_draft' %}bg-stone-100 text-stone-400
+          {% elif es == 'draft_ready' %}bg-blue-100 text-blue-700
+          {% elif es == 'approved' %}bg-amber-100 text-amber-700
+          {% elif es == 'sent' %}bg-green-100 text-green-700
+          {% endif %}">
+          {% if es == 'no_draft' %}No draft
+          {% elif es == 'draft_ready' %}Draft ready
+          {% elif es == 'approved' %}Approved
+          {% elif es == 'sent' %}Sent{% endif %}
+        </span>
+      </div>
+
+      {% if not gmail_connected %}
+      <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-sm text-amber-700 mb-4">
+        Gmail not connected. <a href="/settings/gmail" class="underline font-medium">Connect in Settings →</a>
+      </div>
+      {% endif %}
+
+      {% if not task.contact_email and es != 'sent' %}
+      <div class="p-3 bg-stone-50 border border-stone-200 rounded-lg text-sm text-stone-500 mb-4">
+        Link a contact with an email address to send emails.
+      </div>
+      {% endif %}
+
+      {% if es == 'sent' %}
+      <!-- Sent state -->
+      <div class="space-y-3">
+        <div>
+          <p class="text-xs text-stone-500 mb-1">Subject</p>
+          <p class="text-sm text-stone-800 font-medium">{{ task.email_subject or task.name }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-stone-500 mb-1">Body</p>
+          <pre class="text-sm text-stone-700 whitespace-pre-wrap font-sans bg-stone-50 rounded-lg p-3">{{ task.email_body or '' }}</pre>
+        </div>
+        {% if task.sent_at %}
+        <p class="text-xs text-stone-400">Sent {{ task.sent_at.strftime('%d %b %Y at %H:%M') }}</p>
+        {% endif %}
+      </div>
+
+      {% elif es == 'approved' %}
+      <!-- Approved state — ready to send -->
+      <div class="space-y-3">
+        <div>
+          <p class="text-xs text-stone-500 mb-1">Subject</p>
+          <p class="text-sm text-stone-800 font-medium">{{ task.email_subject or task.name }}</p>
+        </div>
+        <div>
+          <p class="text-xs text-stone-500 mb-1">Body</p>
+          <pre class="text-sm text-stone-700 whitespace-pre-wrap font-sans bg-stone-50 rounded-lg p-3">{{ task.email_body or '' }}</pre>
+        </div>
+        <div class="flex gap-2 pt-1">
+          <form method="post" action="/tasks/{{ task.id }}/send-email">
+            <button type="submit" {% if not gmail_connected or not task.contact_email %}disabled{% endif %}
+              class="text-sm bg-green-700 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
+              Send email to {{ task.contact_email or '…' }}
+            </button>
+          </form>
+          <form method="post" action="/tasks/{{ task.id }}/unapprove-email">
+            <button type="submit"
+              class="text-sm border border-stone-200 text-stone-600 px-4 py-2 rounded-lg hover:bg-stone-50 transition">
+              Edit draft
+            </button>
+          </form>
+        </div>
+      </div>
+
+      {% else %}
+      <!-- no_draft or draft_ready — show editable form -->
+      <form method="post" action="/tasks/{{ task.id }}/save-draft" class="space-y-3">
+        <div>
+          <label class="block text-xs text-stone-500 mb-1">Subject</label>
+          <input name="email_subject" value="{{ task.email_subject or task.name }}"
+            class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+        </div>
+        <div>
+          <label class="block text-xs text-stone-500 mb-1">Body</label>
+          <textarea name="email_body" rows="10"
+            class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400 font-mono">{{ task.email_body or '' }}</textarea>
+        </div>
+        <div class="flex flex-wrap gap-2 pt-1">
+          <button type="submit"
+            class="text-sm bg-stone-800 text-white px-4 py-2 rounded-lg hover:bg-stone-700 transition">
+            Save draft
+          </button>
+          {% if es == 'draft_ready' %}
+          <button type="submit" form="approve-form"
+            class="text-sm bg-amber-600 text-white px-4 py-2 rounded-lg hover:bg-amber-500 transition">
+            Approve
+          </button>
+          {% endif %}
+        </div>
+      </form>
+
+      {% if es == 'draft_ready' %}
+      <form id="approve-form" method="post" action="/tasks/{{ task.id }}/approve-email"></form>
+      {% endif %}
+
+      <div class="mt-3 pt-3 border-t border-stone-100">
+        <form method="post" action="/tasks/{{ task.id }}/generate-draft">
+          <button type="submit"
+            class="text-sm border border-amber-300 text-amber-700 px-4 py-2 rounded-lg hover:bg-amber-50 transition">
+            ✦ Generate draft
+          </button>
+        </form>
+      </div>
+      {% endif %}
+
+    </div>
+
+    <!-- Email thread (sent + received) -->
+    {% if email_thread %}
+    <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-4">
+      <h3 class="text-sm font-semibold text-stone-700 mb-3">Email thread</h3>
+      <div class="space-y-3">
+        {% for msg in email_thread %}
+        <div class="border rounded-lg p-3 {% if msg.direction == 'sent' %}border-stone-100 bg-stone-50{% else %}border-green-100 bg-green-50{% endif %}">
+          <div class="flex items-start justify-between gap-2 mb-1">
+            <div class="flex items-center gap-2">
+              {% if msg.direction == 'sent' %}
+              <span class="text-xs font-medium text-stone-400">↑ You</span>
+              {% else %}
+              <span class="text-xs font-medium text-green-700">↓ {{ msg.correspondent_name or msg.correspondent_email }}</span>
+              {% endif %}
+              <p class="text-sm font-medium text-stone-800">{{ msg.subject or '(no subject)' }}</p>
+            </div>
+            <p class="text-xs text-stone-400 shrink-0 font-mono">{{ msg.date.strftime('%d %b %H:%M') if msg.date else '' }}</p>
+          </div>
+          {% if msg.body %}
+          <pre class="text-xs text-stone-600 whitespace-pre-wrap font-sans max-h-32 overflow-y-auto mt-2">{{ msg.body }}</pre>
+          {% elif msg.body_preview %}
+          <p class="text-xs text-stone-500 mt-1">{{ msg.body_preview }}</p>
+          {% endif %}
+          {% if msg.provider_message_id and msg.provider == 'gmail' %}
+          <a href="https://mail.google.com/mail/u/0/#sent/{{ msg.provider_message_id }}"
+             target="_blank" class="text-xs text-amber-600 hover:text-amber-800 mt-1 block">View in Gmail →</a>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+
+  </div>
+</div>
+{% endblock %}

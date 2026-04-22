@@ -1,0 +1,140 @@
+{% extends "base.html" %}
+{% block title %}Posts — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center justify-between mb-4">
+  <h2 class="text-xl font-semibold">Content Calendar</h2>
+  <form method="post" action="/generate-pending">
+    <button class="bg-amber-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-amber-700">Generate pending</button>
+  </form>
+</div>
+
+<!-- Channel filter tabs -->
+<div class="flex items-center gap-2 mb-6 flex-wrap">
+  <a href="/posts"
+    class="px-3 py-1.5 rounded-lg text-xs font-medium transition
+      {% if not request.query_params.get('channel') %}bg-stone-800 text-white{% else %}bg-stone-100 text-stone-600 hover:bg-stone-200{% endif %}">
+    All
+  </a>
+  <a href="/posts?channel=instagram"
+    class="px-3 py-1.5 rounded-lg text-xs font-medium transition
+      {% if request.query_params.get('channel') == 'instagram' %}bg-amber-600 text-white{% else %}bg-stone-100 text-stone-600 hover:bg-stone-200{% endif %}">
+    Instagram
+  </a>
+  <a href="/posts?channel=linkedin_post"
+    class="px-3 py-1.5 rounded-lg text-xs font-medium transition
+      {% if request.query_params.get('channel') == 'linkedin_post' %}bg-blue-700 text-white{% else %}bg-stone-100 text-stone-600 hover:bg-stone-200{% endif %}">
+    LinkedIn Post
+  </a>
+  <a href="/posts?channel=linkedin_article"
+    class="px-3 py-1.5 rounded-lg text-xs font-medium transition
+      {% if request.query_params.get('channel') == 'linkedin_article' %}bg-blue-700 text-white{% else %}bg-stone-100 text-stone-600 hover:bg-stone-200{% endif %}">
+    LinkedIn Article
+  </a>
+</div>
+
+{% if generating %}
+<div class="bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-4 py-3 mb-6 text-sm">
+  Generation running in background — refresh in a minute to see results.
+</div>
+{% endif %}
+
+<!-- Mobile: card list -->
+<div class="md:hidden space-y-3">
+  {% for post in posts %}
+  <a href="/posts/{{ post.id }}" class="block bg-white rounded-xl border border-stone-200 shadow-sm p-4 hover:shadow-md transition">
+    <div class="flex items-start justify-between gap-2 mb-2">
+      <span class="font-mono text-xs text-stone-400">{{ post.date }}</span>
+      <div class="flex items-center gap-1.5 flex-wrap justify-end">
+        {% if post.approved %}<span class="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Approved</span>
+        {% else %}<span class="px-2 py-0.5 rounded text-xs bg-stone-100 text-stone-400">Draft</span>{% endif %}
+        {% if post.posted_at %}<span class="px-2 py-0.5 rounded text-xs bg-sky-100 text-sky-700">Sent</span>{% endif %}
+      </div>
+    </div>
+    <p class="text-sm font-medium text-stone-800 mb-2 leading-snug">{{ post.theme }}</p>
+    <div class="flex items-center gap-2 flex-wrap">
+      <span class="px-2 py-0.5 rounded text-xs font-medium
+        {% if post.pillar == 'ROOTS' %}bg-amber-100 text-amber-800
+        {% elif post.pillar == 'CULTURE' %}bg-sky-100 text-sky-800
+        {% elif post.pillar == 'MOTHERS' %}bg-rose-100 text-rose-800
+        {% elif post.pillar == 'EVENT' %}bg-purple-100 text-purple-800
+        {% else %}bg-stone-100 text-stone-500{% endif %}">{{ post.pillar or '—' }}</span>
+      <span class="text-xs text-stone-400 capitalize">{{ post.format }}</span>
+      {% set chs = (post.channels or 'instagram').split(',') %}
+      {% for ch in chs %}{% set ch = ch.strip() %}
+        {% if ch == 'instagram' %}<span class="px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800">IG</span>
+        {% elif ch == 'linkedin_post' %}<span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-800">LI</span>
+        {% elif ch == 'linkedin_article' %}<span class="px-1.5 py-0.5 rounded text-xs bg-indigo-100 text-indigo-800">Art</span>
+        {% endif %}
+      {% endfor %}
+      <span class="text-xs {% if post.has_image %}text-green-600{% else %}text-stone-300{% endif %}">{% if post.has_image %}✓ image{% else %}— image{% endif %}</span>
+      <span class="text-xs {% if post.caption %}text-green-600{% else %}text-stone-300{% endif %}">{% if post.caption %}✓ caption{% else %}— caption{% endif %}</span>
+    </div>
+  </a>
+  {% else %}
+  <p class="text-center text-stone-400 py-10">No posts yet.</p>
+  {% endfor %}
+</div>
+
+<!-- Desktop: table -->
+<div class="hidden md:block overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
+  <table class="w-full text-sm">
+    <thead class="bg-stone-100 text-stone-500 text-xs uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left">Date</th>
+        <th class="px-4 py-3 text-left">Theme</th>
+        <th class="px-4 py-3 text-left">Pillar</th>
+        <th class="px-4 py-3 text-left">Format</th>
+        <th class="px-4 py-3 text-left">Channels</th>
+        <th class="px-4 py-3 text-center">Image</th>
+        <th class="px-4 py-3 text-center">Caption</th>
+        <th class="px-4 py-3 text-center">Status</th>
+        <th class="px-4 py-3 text-center">Sent</th>
+        <th class="px-4 py-3"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-stone-100">
+      {% for post in posts %}
+      <tr class="hover:bg-stone-50">
+        <td class="px-4 py-3 font-mono text-xs text-stone-500 whitespace-nowrap">{{ post.date }}</td>
+        <td class="px-4 py-3 max-w-[200px] truncate">{{ post.theme }}</td>
+        <td class="px-4 py-3">
+          <span class="px-2 py-0.5 rounded text-xs font-medium
+            {% if post.pillar == 'ROOTS' %}bg-amber-100 text-amber-800
+            {% elif post.pillar == 'CULTURE' %}bg-sky-100 text-sky-800
+            {% elif post.pillar == 'MOTHERS' %}bg-rose-100 text-rose-800
+            {% elif post.pillar == 'EVENT' %}bg-purple-100 text-purple-800
+            {% else %}bg-stone-100 text-stone-500{% endif %}">{{ post.pillar or '—' }}</span>
+        </td>
+        <td class="px-4 py-3 text-stone-500 capitalize">{{ post.format }}</td>
+        <td class="px-4 py-3">
+          <div class="flex flex-wrap gap-1">
+          {% set chs = (post.channels or 'instagram').split(',') %}
+          {% for ch in chs %}
+            {% set ch = ch.strip() %}
+            {% if ch == 'instagram' %}
+            <span class="px-1.5 py-0.5 rounded text-xs bg-amber-100 text-amber-800">IG</span>
+            {% elif ch == 'linkedin_post' %}
+            <span class="px-1.5 py-0.5 rounded text-xs bg-blue-100 text-blue-800">LI</span>
+            {% elif ch == 'linkedin_article' %}
+            <span class="px-1.5 py-0.5 rounded text-xs bg-indigo-100 text-indigo-800">Art</span>
+            {% endif %}
+          {% endfor %}
+          </div>
+        </td>
+        <td class="px-4 py-3 text-center">{% if post.has_image %}<span class="text-green-600">✓</span>{% else %}<span class="text-stone-300">—</span>{% endif %}</td>
+        <td class="px-4 py-3 text-center">{% if post.caption %}<span class="text-green-600">✓</span>{% else %}<span class="text-stone-300">—</span>{% endif %}</td>
+        <td class="px-4 py-3 text-center">
+          {% if post.approved %}<span class="px-2 py-0.5 rounded text-xs font-medium bg-green-100 text-green-800">Approved</span>
+          {% else %}<span class="px-2 py-0.5 rounded text-xs bg-stone-100 text-stone-400">Draft</span>{% endif %}
+        </td>
+        <td class="px-4 py-3 text-center text-xs text-stone-400">{{ post.posted_at.strftime('%b %d') if post.posted_at else '—' }}</td>
+        <td class="px-4 py-3 text-right"><a href="/posts/{{ post.id }}" class="text-amber-700 hover:text-amber-900 text-xs font-medium">View →</a></td>
+      </tr>
+      {% else %}
+      <tr><td colspan="10" class="px-4 py-10 text-center text-stone-400">No posts yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

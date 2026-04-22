@@ -1,0 +1,10 @@
+.env
+.env.*
+__pycache__/
+*.pyc
+*.pyo
+.DS_Store
+.idea
+app.yaml
+data/
+.claude/

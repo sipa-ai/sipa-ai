@@ -1,0 +1,56 @@
+name: sipa-ai
+region: fra
+
+services:
+  - name: app
+    github:
+      repo: YOUR_GITHUB_USERNAME/YOUR_REPO_NAME
+      branch: main
+      deploy_on_push: true
+    source_dir: /
+    run_command: python main.py
+    http_port: 8080
+    instance_count: 1
+    instance_size_slug: basic-xxs
+    envs:
+      - key: TELEGRAM_BOT_TOKEN
+        scope: RUN_TIME
+        type: SECRET
+        value: YOUR_TELEGRAM_BOT_TOKEN
+      - key: ANTHROPIC_API_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: YOUR_ANTHROPIC_API_KEY
+      - key: CRON_DAILY
+        scope: RUN_TIME
+        value: "0 7 * * *"
+      - key: CRON_WEEKLY
+        scope: RUN_TIME
+        value: "0 6 * * 1"
+      - key: CRON_CONTENT
+        scope: RUN_TIME
+        value: "26 8 * * *"
+      - key: CRON_GMAIL
+        scope: RUN_TIME
+        value: "*/15 * * * *"
+      - key: PORTAL_ADMIN_USERNAME
+        scope: RUN_TIME
+        type: SECRET
+        value: YOUR_ADMIN_USERNAME
+      - key: PORTAL_ADMIN_PASSWORD
+        scope: RUN_TIME
+        type: SECRET
+        value: YOUR_ADMIN_PASSWORD
+      - key: SECRET_KEY
+        scope: RUN_TIME
+        type: SECRET
+        value: YOUR_RANDOM_SECRET_KEY
+      - key: APP_NAME
+        scope: RUN_TIME
+        value: "SIPA"
+      - key: GMAIL_CALLBACK_URL
+        scope: RUN_TIME
+        value: "https://YOUR_APP_DOMAIN/settings/email/callback/gmail"
+      - key: DATABASE_URL
+        scope: RUN_TIME
+        value: ${YOUR_POSTGRES_COMPONENT.DATABASE_URL}

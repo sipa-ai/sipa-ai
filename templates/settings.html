@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Settings — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="max-w-lg">
+  <h2 class="text-xl font-semibold text-stone-800 mb-6">Settings</h2>
+
+  {% if saved %}
+  <div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Saved.</div>
+  {% endif %}
+
+  <!-- Owner name -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 mb-6">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Your name</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      Used by agents when asking for your approval — e.g. "Send only when Sarah confirms."
+    </p>
+    <form method="post" action="/settings/owner-name" class="flex items-center gap-3">
+      <input type="text" name="owner_name" value="{{ owner_name }}"
+        placeholder="e.g. Sarah"
+        class="flex-1 border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+      <button type="submit"
+        class="bg-stone-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-stone-700 transition">Save</button>
+    </form>
+  </div>
+
+  <!-- Agent preferences -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 mb-6">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Agent language</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      Language the agent uses when talking to you — for summaries, drafts shown for approval, and daily reports.
+      This is separate from each contact's correspondence language.
+    </p>
+    <form method="post" action="/settings" class="flex items-center gap-3">
+      <!-- Preserve current channel selection when saving language -->
+      {% for ch in enabled_channels %}<input type="hidden" name="channels" value="{{ ch }}">{% endfor %}
+      <select name="agent_language"
+        class="border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400">
+        <option value="en" {% if agent_language == 'en' %}selected{% endif %}>English (en)</option>
+        <option value="de" {% if agent_language == 'de' %}selected{% endif %}>German (de)</option>
+        <option value="es" {% if agent_language == 'es' %}selected{% endif %}>Spanish (es)</option>
+        <option value="fr" {% if agent_language == 'fr' %}selected{% endif %}>French (fr)</option>
+        <option value="ar" {% if agent_language == 'ar' %}selected{% endif %}>Arabic (ar)</option>
+      </select>
+      <button type="submit"
+        class="bg-stone-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-stone-700 transition">Save</button>
+    </form>
+  </div>
+
+  <!-- Channels -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 mb-6">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Marketing channels</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      Enable the channels you post to. Enabled channels appear in the content calendar and can be assigned to posts.
+    </p>
+    <form method="post" action="/settings" class="space-y-3">
+      <!-- keep agent_language hidden so it doesn't reset when saving channels -->
+      <input type="hidden" name="agent_language" value="{{ agent_language }}">
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" name="channels" value="instagram"
+          {% if 'instagram' in enabled_channels %}checked{% endif %}
+          class="w-4 h-4 rounded border-stone-300 accent-amber-500">
+        <span class="text-sm text-stone-700 font-medium">Instagram</span>
+        <span class="text-xs text-stone-400">Photos, carousels, reels</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" name="channels" value="linkedin_post"
+          {% if 'linkedin_post' in enabled_channels %}checked{% endif %}
+          class="w-4 h-4 rounded border-stone-300 accent-blue-600">
+        <span class="text-sm text-stone-700 font-medium">LinkedIn — Post</span>
+        <span class="text-xs text-stone-400">Short post with optional photo</span>
+      </label>
+      <label class="flex items-center gap-3 cursor-pointer">
+        <input type="checkbox" name="channels" value="linkedin_article"
+          {% if 'linkedin_article' in enabled_channels %}checked{% endif %}
+          class="w-4 h-4 rounded border-stone-300 accent-blue-600">
+        <span class="text-sm text-stone-700 font-medium">LinkedIn — Article</span>
+        <span class="text-xs text-stone-400">Long-form article with cover photo (AI draft, manual publish)</span>
+      </label>
+      <button type="submit"
+        class="mt-2 bg-stone-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-stone-700 transition">Save channels</button>
+    </form>
+  </div>
+
+  <!-- Telegram access -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 mb-6">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Telegram access</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      Comma-separated Telegram user IDs allowed to message the bot.
+      Find your ID by messaging @userinfobot on Telegram.
+    </p>
+    <form method="post" action="/settings/allowed-users" class="flex items-center gap-3">
+      <input type="text" name="allowed_user_ids" value="{{ allowed_user_ids }}"
+        placeholder="7621740681,6596346855"
+        class="flex-1 border border-stone-200 rounded-lg text-sm px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400">
+      <button type="submit"
+        class="bg-stone-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-stone-700 transition">Save</button>
+    </form>
+  </div>
+
+  <!-- Google AI Studio key -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 mb-6">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Google AI Studio key</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      API key for Gemini image generation and voice transcription.
+    </p>
+    <form method="post" action="/settings/google-ai-key" class="flex items-center gap-3">
+      <input type="password" name="google_ai_studio_key"
+        value="{{ google_ai_studio_key }}"
+        placeholder="AIza…"
+        class="flex-1 border border-stone-200 rounded-lg text-sm px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400">
+      <button type="submit"
+        class="bg-stone-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-stone-700 transition">Save</button>
+    </form>
+  </div>
+
+  <!-- Gemini image models -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 mb-6">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Gemini image models</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      Comma-separated list of Gemini models for artistic image generation, tried in order.
+    </p>
+    <form method="post" action="/settings/gemini-models" class="flex items-center gap-3">
+      <input type="text" name="gemini_image_model" value="{{ gemini_image_model }}"
+        placeholder="gemini-3.1-flash-image-preview,gemini-2.5-flash-image"
+        class="flex-1 border border-stone-200 rounded-lg text-sm px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400">
+      <button type="submit"
+        class="bg-stone-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-stone-700 transition">Save</button>
+    </form>
+  </div>
+
+  <!-- Email accounts link -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 mb-6">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Email accounts</h3>
+    <p class="text-xs text-stone-400 mb-3">Manage connected Gmail and Outlook accounts used for sending emails.</p>
+    <a href="/settings/email"
+      class="inline-block border border-stone-200 text-stone-600 text-sm px-4 py-2 rounded-lg hover:bg-stone-50 transition">
+      Manage email accounts →
+    </a>
+  </div>
+
+  <!-- LinkedIn accounts link -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">LinkedIn accounts</h3>
+    <p class="text-xs text-stone-400 mb-3">Connect a LinkedIn account to publish posts directly from the portal.</p>
+    <a href="/settings/linkedin"
+      class="inline-block border border-stone-200 text-stone-600 text-sm px-4 py-2 rounded-lg hover:bg-stone-50 transition">
+      Manage LinkedIn accounts →
+    </a>
+  </div>
+</div>
+{% endblock %}

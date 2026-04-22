@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}Gmail Account — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center gap-3 mb-6">
+  <a href="/settings/gmail" class="text-sm text-stone-400 hover:text-stone-600 transition">← Gmail accounts</a>
+  <span class="text-stone-300">/</span>
+  <h2 class="text-xl font-semibold text-stone-800">
+    {{ account.label or account.email or "Account #" ~ account.id }}
+  </h2>
+</div>
+
+{% if saved %}
+<div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Saved.</div>
+{% endif %}
+{% if error %}
+<div class="mb-4 px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{{ error }}</div>
+{% endif %}
+
+<div class="max-w-xl space-y-6">
+
+  <!-- Connection status -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-stone-700 mb-3">Connection status</h3>
+    {% if account.access_token %}
+    <div class="flex items-center justify-between">
+      <div>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">
+          <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> Connected
+        </span>
+        {% if account.email %}
+        <p class="text-sm text-stone-600 mt-1">{{ account.email }}</p>
+        {% endif %}
+      </div>
+      <form method="post" action="/settings/gmail/{{ account.id }}/disconnect"
+        onsubmit="return confirm('Disconnect this Gmail account?')">
+        <button type="submit"
+          class="text-sm border border-red-200 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-50 transition">
+          Disconnect
+        </button>
+      </form>
+    </div>
+    {% else %}
+    <div class="flex items-center justify-between">
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stone-100 text-stone-500 rounded-full text-xs font-medium">
+        <span class="w-1.5 h-1.5 bg-stone-400 rounded-full"></span> Not connected
+      </span>
+      {% if account.client_id and account.client_secret %}
+      <a href="/settings/gmail/{{ account.id }}/connect"
+        class="text-sm bg-stone-800 text-white px-4 py-2 rounded-lg hover:bg-stone-700 transition">
+        Connect Gmail
+      </a>
+      {% endif %}
+    </div>
+    {% if not account.client_id %}
+    <p class="text-xs text-stone-400 mt-2">Save your OAuth credentials below, then click Connect Gmail.</p>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <!-- OAuth2 credentials -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Google OAuth2 credentials</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      Google Cloud Console → APIs &amp; Services → Credentials → OAuth 2.0 Client ID (Web application).<br>
+      Add the callback URL below as an authorised redirect URI.
+    </p>
+    <form method="post" action="/settings/gmail/{{ account.id }}/config" class="space-y-3">
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">Label <span class="text-stone-400">(optional)</span></label>
+        <input name="label" value="{{ account.label or '' }}"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400"
+          placeholder="e.g. Your Name — you@example.com">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">Client ID</label>
+        <input name="client_id" required value="{{ account.client_id or '' }}"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400 font-mono"
+          placeholder="xxxxx.apps.googleusercontent.com">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">Client secret</label>
+        <input name="client_secret" required value="{{ account.client_secret or '' }}"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400 font-mono"
+          placeholder="GOCSPX-…">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">
+          Callback URL
+          <span class="text-stone-400">(leave blank to use <code class="bg-stone-100 px-1 rounded">{{ fallback_redirect_uri }}</code>)</span>
+        </label>
+        <input name="callback_url" value="{{ account.callback_url or '' }}"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-amber-400 font-mono"
+          placeholder="https://YOUR_DOMAIN/settings/gmail/callback">
+        <p class="text-xs text-stone-400 mt-1">
+          Active redirect URI:
+          <code class="bg-stone-100 px-1 rounded">{{ account.callback_url or fallback_redirect_uri }}</code>
+        </p>
+      </div>
+      <button type="submit"
+        class="text-sm bg-stone-800 text-white px-4 py-2 rounded-lg hover:bg-stone-700 transition">
+        Save credentials
+      </button>
+    </form>
+  </div>
+
+  <!-- Danger zone -->
+  <div class="bg-white rounded-xl border border-red-100 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-red-600 mb-3">Danger zone</h3>
+    <form method="post" action="/settings/gmail/{{ account.id }}/delete"
+      onsubmit="return confirm('Delete this Gmail account? This cannot be undone.')">
+      <button type="submit"
+        class="text-sm border border-red-200 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-50 transition">
+        Delete account
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

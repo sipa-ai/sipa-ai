@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Projects — {{ app_name }}{% endblock %}
+{% block content %}
+
+{% set status_color = {
+  "planning":  "bg-stone-100 text-stone-500",
+  "active":    "bg-blue-100 text-blue-700",
+  "completed": "bg-green-100 text-green-700",
+  "archived":  "bg-stone-100 text-stone-400"
+} %}
+
+<div class="flex items-center justify-between mb-6">
+  <h2 class="text-xl font-semibold text-stone-800">Projects</h2>
+  <a href="/projects/new"
+    class="text-sm bg-stone-800 text-white px-4 py-2 rounded-lg hover:bg-stone-700 transition">
+    + New project
+  </a>
+</div>
+
+{% if saved %}
+<div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Saved.</div>
+{% endif %}
+
+<!-- Mobile: card list -->
+<div class="md:hidden space-y-3">
+  {% for p in projects %}
+  <a href="/projects/{{ p.id }}" class="block bg-white rounded-xl border border-stone-200 shadow-sm p-4 hover:border-amber-300 transition">
+    <div class="flex items-start justify-between gap-2 mb-1">
+      <p class="font-medium text-stone-800">{{ p.name }}</p>
+      <span class="px-2 py-0.5 rounded text-xs font-medium shrink-0 {{ status_color.get(p.status, 'bg-stone-100 text-stone-500') }}">
+        {{ p.status.title() }}
+      </span>
+    </div>
+    {% if p.description %}<p class="text-xs text-stone-500 mb-2">{{ p.description }}</p>{% endif %}
+    <div class="flex items-center gap-4 text-xs text-stone-400">
+      <span>{{ p.open_task_count }} open / {{ p.task_count }} tasks</span>
+      {% if p.post_count %}<span>{{ p.post_count }} post{{ 's' if p.post_count != 1 }}</span>{% endif %}
+      {% if p.deadline %}<span class="font-mono">Due {{ p.deadline }}</span>{% endif %}
+    </div>
+  </a>
+  {% else %}
+  <p class="text-center text-stone-400 py-10">No projects yet.</p>
+  {% endfor %}
+</div>
+
+<!-- Desktop: table -->
+<div class="hidden md:block overflow-x-auto rounded-xl border border-stone-200 bg-white shadow-sm">
+  <table class="w-full text-sm">
+    <thead class="bg-stone-100 text-stone-600 text-xs uppercase tracking-wide">
+      <tr>
+        <th class="px-4 py-3 text-left">Project</th>
+        <th class="px-4 py-3 text-left">Status</th>
+        <th class="px-4 py-3 text-left">Tasks</th>
+        <th class="px-4 py-3 text-left">Deadline</th>
+        <th class="px-4 py-3 text-left"></th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-stone-100">
+      {% for p in projects %}
+      <tr class="hover:bg-stone-50">
+        <td class="px-4 py-3">
+          <p class="font-medium text-stone-800">{{ p.name }}</p>
+          {% if p.description %}<p class="text-xs text-stone-400">{{ p.description }}</p>{% endif %}
+        </td>
+        <td class="px-4 py-3">
+          <span class="px-2 py-0.5 rounded text-xs font-medium {{ status_color.get(p.status, 'bg-stone-100 text-stone-500') }}">
+            {{ p.status.title() }}
+          </span>
+        </td>
+        <td class="px-4 py-3 text-stone-500">
+          {{ p.open_task_count }}/{{ p.task_count }} tasks
+          {% if p.post_count %} · {{ p.post_count }} post{{ 's' if p.post_count != 1 }}{% endif %}
+        </td>
+        <td class="px-4 py-3 font-mono text-xs text-stone-500">{{ p.deadline or '—' }}</td>
+        <td class="px-4 py-3">
+          <a href="/projects/{{ p.id }}"
+            class="text-xs border border-stone-200 text-stone-600 px-2.5 py-1.5 rounded-lg hover:bg-stone-50 transition">View</a>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="px-4 py-10 text-center text-stone-400">No projects yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
