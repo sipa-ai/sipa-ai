@@ -240,6 +240,9 @@ def init_db():
             ("linkedin_title",      "TEXT"),
             ("linkedin_article_body", "TEXT"),
             ("linkedin_posted_at",  "TIMESTAMP"),
+            ("reel_generator",      "TEXT DEFAULT 'veo'"),
+            ("canva_template_id",   "TEXT"),
+            ("instagram_posted_at", "TIMESTAMP"),
         ]:
             cur.execute(f"""
                 ALTER TABLE posts ADD COLUMN IF NOT EXISTS {col} {definition}
@@ -255,6 +258,16 @@ def init_db():
                 image_bytes BYTEA,
                 image_mime_type TEXT DEFAULT 'image/jpeg',
                 UNIQUE(post_id, slide_number)
+            )
+        """)
+
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS canva_field_mappings (
+                id SERIAL PRIMARY KEY,
+                template_id TEXT NOT NULL,
+                canva_field_name TEXT NOT NULL,
+                mapped_to TEXT NOT NULL,
+                UNIQUE(template_id, canva_field_name)
             )
         """)
 
@@ -1023,7 +1036,8 @@ def update_post_fields(date_str: str, **fields):
     """Update any combination of text fields on a post by date."""
     allowed = {"caption", "theme", "image_prompt", "image_style_type", "pillar", "n_slides",
                "image_style", "format", "video_prompt", "channels",
-               "linkedin_caption", "linkedin_title", "linkedin_article_body", "project_id"}
+               "linkedin_caption", "linkedin_title", "linkedin_article_body", "project_id",
+               "reel_generator", "canva_template_id"}
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not updates:
         return
@@ -1201,17 +1215,20 @@ def upsert_slide(post_id: int, slide: dict):
 
 def create_post(date, format, pillar, theme, image_prompt=None,
                 image_style=None, image_style_type="realistic",
-                n_slides=None, slides=None, video_prompt=None) -> int:
+                n_slides=None, slides=None, video_prompt=None,
+                reel_generator="veo", canva_template_id=None) -> int:
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO posts (date, format, pillar, theme, image_prompt, image_style,
-                               image_style_type, n_slides, video_prompt)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                               image_style_type, n_slides, video_prompt,
+                               reel_generator, canva_template_id)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (date) DO NOTHING
             RETURNING id
         """, (date, format, pillar, theme, image_prompt, image_style,
-              image_style_type, n_slides, video_prompt))
+              image_style_type, n_slides, video_prompt,
+              reel_generator, canva_template_id))
         row = cur.fetchone()
         if row is None:
             raise ValueError(f"A post already exists for {date}. Use update_post to modify it.")
@@ -1564,6 +1581,38 @@ def get_unified_emails_for_task(task_id: int):
             ORDER BY date ASC NULLS LAST
         """, (task_id, task_id))
         return cur.fetchall()
+
+
+def mark_post_instagram_sent(post_id: int):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE posts SET instagram_posted_at = NOW() WHERE id = %s", (post_id,))
+
+
+# ── Canva field mappings ──────────────────────────────────────────────────────
+
+def get_canva_field_mappings(template_id: str) -> list:
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            "SELECT * FROM canva_field_mappings WHERE template_id = %s ORDER BY canva_field_name",
+            (template_id,),
+        )
+        return cur.fetchall()
+
+
+def save_canva_field_mappings(template_id: str, mappings: list[dict]):
+    """Replace all field mappings for a template. mappings = [{canva_field_name, mapped_to}]."""
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("DELETE FROM canva_field_mappings WHERE template_id = %s", (template_id,))
+        for m in mappings:
+            if m.get("mapped_to") and m.get("mapped_to") != "ignore":
+                cur.execute("""
+                    INSERT INTO canva_field_mappings (template_id, canva_field_name, mapped_to)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (template_id, canva_field_name) DO UPDATE SET mapped_to = EXCLUDED.mapped_to
+                """, (template_id, m["canva_field_name"], m["mapped_to"]))
 
 
 def get_unified_emails_for_contact(contact_id: int):

@@ -336,7 +336,9 @@ _CONTENT_TOOLS = [
                     "description": "realistic=photographic, artistic=illustrated/creative (static and carousel only)",
                 },
                 "n_slides": {"type": "integer"},
-                "video_prompt": {"type": "string", "description": "Video generation prompt (reel only). Cinematic, 9:16, 8s."},
+                "video_prompt": {"type": "string", "description": "Video generation prompt (reel only, Veo). Cinematic, 9:16, 8s."},
+                "reel_generator": {"type": "string", "enum": ["veo", "canva"], "description": "Which generator to use for reels. Default: veo."},
+                "canva_template_id": {"type": "string", "description": "Canva design ID to use when reel_generator=canva."},
                 "slides": {
                     "type": "array",
                     "items": {
@@ -375,7 +377,9 @@ _CONTENT_TOOLS = [
                 "image_prompt": {"type": "string"},
                 "image_style_type": {"type": "string", "enum": ["realistic", "artistic"]},
                 "pillar": {"type": "string"},
-                "video_prompt": {"type": "string", "description": "Video generation prompt (reel only)"},
+                "video_prompt": {"type": "string", "description": "Video generation prompt (reel only, Veo)"},
+                "reel_generator": {"type": "string", "enum": ["veo", "canva"], "description": "Which generator to use for reels."},
+                "canva_template_id": {"type": "string", "description": "Canva design ID (when reel_generator=canva)."},
             },
             "required": ["date"],
         },

@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}Instagram — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center gap-3 mb-6">
+  <a href="/settings" class="text-sm text-stone-400 hover:text-stone-600 transition">← Settings</a>
+  <span class="text-stone-300">/</span>
+  <h2 class="text-xl font-semibold text-stone-800">Instagram</h2>
+</div>
+
+{% if saved %}
+<div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Saved.</div>
+{% endif %}
+{% if error %}
+<div class="mb-4 px-4 py-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-sm">{{ error }}</div>
+{% endif %}
+
+<div class="max-w-xl space-y-6">
+
+  <!-- Connection status -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-stone-700 mb-3">Connection status</h3>
+    {% if connected %}
+    <div class="flex items-center justify-between">
+      <div>
+        <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-pink-100 text-pink-700 rounded-full text-xs font-medium">
+          <span class="w-1.5 h-1.5 bg-pink-500 rounded-full"></span> Connected
+        </span>
+        {% if ig_user_id %}
+        <p class="text-xs text-stone-400 mt-1">IG user ID: <code class="bg-stone-100 px-1 rounded">{{ ig_user_id }}</code></p>
+        {% endif %}
+      </div>
+      <form method="post" action="/settings/instagram/disconnect"
+            onsubmit="return confirm('Disconnect Instagram?')">
+        <button type="submit"
+          class="text-sm border border-red-200 text-red-500 px-3 py-1.5 rounded-lg hover:bg-red-50 transition">
+          Disconnect
+        </button>
+      </form>
+    </div>
+    {% else %}
+    <div class="flex items-center justify-between">
+      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-stone-100 text-stone-500 rounded-full text-xs font-medium">
+        <span class="w-1.5 h-1.5 bg-stone-400 rounded-full"></span> Not connected
+      </span>
+      {% if app_id %}
+      <a href="/settings/instagram/connect"
+        class="text-sm bg-pink-600 text-white px-4 py-2 rounded-lg hover:bg-pink-700 transition">
+        Connect Instagram
+      </a>
+      {% endif %}
+    </div>
+    {% if not app_id %}
+    <p class="text-xs text-stone-400 mt-2">Save your Facebook App credentials below, then click Connect Instagram.</p>
+    {% endif %}
+    {% endif %}
+  </div>
+
+  <!-- App credentials -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">Facebook App credentials</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      Go to <span class="font-mono bg-stone-100 px-1 rounded">developers.facebook.com</span> → Create App → Business type.<br>
+      Add the <strong>Instagram Graph API</strong> product. Permissions needed:
+      <code class="bg-stone-100 px-1 rounded">instagram_basic</code>,
+      <code class="bg-stone-100 px-1 rounded">instagram_content_publish</code>,
+      <code class="bg-stone-100 px-1 rounded">pages_show_list</code>.<br>
+      Add the callback URL below as a valid OAuth redirect URI.
+    </p>
+    <form method="post" action="/settings/instagram/config" class="space-y-3">
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">App ID</label>
+        <input name="app_id" required value="{{ app_id }}"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-pink-400 font-mono"
+          placeholder="123456789012345">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">App secret</label>
+        <input name="app_secret" required value=""
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-pink-400 font-mono"
+          placeholder="abc123...">
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-stone-600 mb-1">
+          Callback URL
+          <span class="text-stone-400">(leave blank to use <code class="bg-stone-100 px-1 rounded">{{ fallback_redirect_uri }}</code>)</span>
+        </label>
+        <input name="callback_url" value="{{ callback_url }}"
+          class="w-full border border-stone-200 rounded-lg text-sm px-3 py-2 focus:outline-none focus:ring-1 focus:ring-pink-400 font-mono"
+          placeholder="https://YOUR_DOMAIN/settings/instagram/callback">
+        <p class="text-xs text-stone-400 mt-1">
+          Active redirect URI: <code class="bg-stone-100 px-1 rounded">{{ callback_url or fallback_redirect_uri }}</code>
+        </p>
+      </div>
+      <button type="submit"
+        class="text-sm bg-stone-800 text-white px-4 py-2 rounded-lg hover:bg-stone-700 transition">
+        Save credentials
+      </button>
+    </form>
+  </div>
+
+</div>
+{% endblock %}

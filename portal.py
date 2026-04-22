@@ -503,6 +503,19 @@ def post_detail(post_id: int, request: Request):
     slides = db.get_slides_for_post(post_id) if post["format"] == "carousel" else []
     channels = [c.strip() for c in (post.get("channels") or "instagram").split(",")]
     linkedin_connected = bool(db.get_connected_linkedin_accounts())
+
+    canva_templates = []
+    instagram_connected = False
+    if post["format"] == "reel":
+        try:
+            from services.canva import list_video_templates, is_connected as canva_connected
+            from services.instagram import is_connected as ig_connected
+            if canva_connected():
+                canva_templates = list_video_templates()
+            instagram_connected = ig_connected()
+        except Exception as e:
+            logger.warning("Could not load Canva/Instagram state: %s", e)
+
     return templates.TemplateResponse("post_detail.html", {
         "request": request,
         "post": post,
@@ -510,6 +523,8 @@ def post_detail(post_id: int, request: Request):
         "channels": channels,
         "linkedin_connected": linkedin_connected,
         "projects": db.get_all_projects(),
+        "canva_templates": canva_templates,
+        "instagram_connected": instagram_connected,
         "saved": request.query_params.get("saved") == "1",
     })
 
@@ -1031,3 +1046,225 @@ def settings_linkedin_delete(account_id: int, request: Request):
     if r := _guard(request): return r
     db.delete_linkedin_account(account_id)
     return RedirectResponse("/settings/linkedin", status_code=302)
+
+
+# ── Settings — Canva ──────────────────────────────────────────────────────────
+
+@app.get("/settings/canva", response_class=HTMLResponse)
+def settings_canva(request: Request):
+    if r := _guard(request): return r
+    from services.canva import FALLBACK_REDIRECT_URI as CANVA_FALLBACK, is_connected
+    return templates.TemplateResponse("settings_canva.html", {
+        "request": request,
+        "connected": is_connected(),
+        "client_id": db.get_setting("canva_client_id", ""),
+        "callback_url": db.get_setting("canva_callback_url", ""),
+        "fallback_redirect_uri": CANVA_FALLBACK,
+        "saved": request.query_params.get("saved") == "1",
+        "error": request.query_params.get("error"),
+    })
+
+
+@app.post("/settings/canva/config")
+def settings_canva_save_config(request: Request,
+                                client_id: str = Form(...),
+                                client_secret: str = Form(...),
+                                callback_url: str = Form("")):
+    if r := _guard(request): return r
+    db.set_setting("canva_client_id", client_id.strip())
+    db.set_setting("canva_client_secret", client_secret.strip())
+    db.set_setting("canva_callback_url", callback_url.strip())
+    return RedirectResponse("/settings/canva?saved=1", status_code=302)
+
+
+@app.get("/settings/canva/connect")
+def settings_canva_connect(request: Request):
+    if r := _guard(request): return r
+    from services.canva import get_auth_url
+    url = get_auth_url()
+    if not url:
+        return RedirectResponse("/settings/canva?error=Save+client+credentials+first", status_code=302)
+    return RedirectResponse(url, status_code=302)
+
+
+@app.get("/settings/canva/callback")
+def settings_canva_callback(request: Request, code: str = "", error: str = ""):
+    if r := _guard(request): return r
+    if error or not code:
+        return RedirectResponse(f"/settings/canva?error={error or 'Auth+cancelled'}", status_code=302)
+    from services.canva import exchange_code
+    ok = exchange_code(code)
+    if not ok:
+        return RedirectResponse("/settings/canva?error=Token+exchange+failed", status_code=302)
+    return RedirectResponse("/settings/canva?saved=1", status_code=302)
+
+
+@app.post("/settings/canva/disconnect")
+def settings_canva_disconnect(request: Request):
+    if r := _guard(request): return r
+    from services.canva import disconnect
+    disconnect()
+    return RedirectResponse("/settings/canva", status_code=302)
+
+
+@app.get("/settings/canva/templates/{template_id}/fields", response_class=HTMLResponse)
+def settings_canva_template_fields(template_id: str, request: Request):
+    if r := _guard(request): return r
+    from services.canva import get_template_fields
+    api_fields = get_template_fields(template_id)
+    saved_mappings = {m["canva_field_name"]: m["mapped_to"] for m in db.get_canva_field_mappings(template_id)}
+    fields = [
+        {
+            "name": f["name"],
+            "type": f["type"],
+            "mapped_to": saved_mappings.get(f["name"], "ignore"),
+        }
+        for f in api_fields
+    ]
+    return templates.TemplateResponse("settings_canva_fields.html", {
+        "request": request,
+        "template_id": template_id,
+        "fields": fields,
+        "saved": request.query_params.get("saved") == "1",
+    })
+
+
+@app.post("/settings/canva/templates/{template_id}/fields")
+async def settings_canva_save_fields(template_id: str, request: Request):
+    if r := _guard(request): return r
+    form = await request.form()
+    # Each field comes in as mapped_to_{field_name} = "theme"|"image"|"ignore"
+    mappings = []
+    for key, value in form.items():
+        if key.startswith("mapped_to_"):
+            field_name = key[len("mapped_to_"):]
+            mappings.append({"canva_field_name": field_name, "mapped_to": value})
+    db.save_canva_field_mappings(template_id, mappings)
+    return RedirectResponse(f"/settings/canva/templates/{template_id}/fields?saved=1", status_code=302)
+
+
+# ── Settings — Instagram ──────────────────────────────────────────────────────
+
+@app.get("/settings/instagram", response_class=HTMLResponse)
+def settings_instagram(request: Request):
+    if r := _guard(request): return r
+    from services.instagram import FALLBACK_REDIRECT_URI as IG_FALLBACK, is_connected
+    return templates.TemplateResponse("settings_instagram.html", {
+        "request": request,
+        "connected": is_connected(),
+        "app_id": db.get_setting("instagram_app_id", ""),
+        "callback_url": db.get_setting("instagram_callback_url", ""),
+        "ig_user_id": db.get_setting("instagram_user_id", ""),
+        "fallback_redirect_uri": IG_FALLBACK,
+        "saved": request.query_params.get("saved") == "1",
+        "error": request.query_params.get("error"),
+    })
+
+
+@app.post("/settings/instagram/config")
+def settings_instagram_save_config(request: Request,
+                                    app_id: str = Form(...),
+                                    app_secret: str = Form(...),
+                                    callback_url: str = Form("")):
+    if r := _guard(request): return r
+    db.set_setting("instagram_app_id", app_id.strip())
+    db.set_setting("instagram_app_secret", app_secret.strip())
+    db.set_setting("instagram_callback_url", callback_url.strip())
+    return RedirectResponse("/settings/instagram?saved=1", status_code=302)
+
+
+@app.get("/settings/instagram/connect")
+def settings_instagram_connect(request: Request):
+    if r := _guard(request): return r
+    from services.instagram import get_auth_url
+    url = get_auth_url()
+    if not url:
+        return RedirectResponse("/settings/instagram?error=Save+app+credentials+first", status_code=302)
+    return RedirectResponse(url, status_code=302)
+
+
+@app.get("/settings/instagram/callback")
+def settings_instagram_callback(request: Request, code: str = "", error: str = ""):
+    if r := _guard(request): return r
+    if error or not code:
+        return RedirectResponse(f"/settings/instagram?error={error or 'Auth+cancelled'}", status_code=302)
+    from services.instagram import exchange_code
+    ok = exchange_code(code)
+    if not ok:
+        return RedirectResponse("/settings/instagram?error=Token+exchange+failed", status_code=302)
+    return RedirectResponse("/settings/instagram?saved=1", status_code=302)
+
+
+@app.post("/settings/instagram/disconnect")
+def settings_instagram_disconnect(request: Request):
+    if r := _guard(request): return r
+    from services.instagram import disconnect
+    disconnect()
+    return RedirectResponse("/settings/instagram", status_code=302)
+
+
+# ── Post — reel generator selector ───────────────────────────────────────────
+
+@app.post("/posts/{post_id}/reel-generator")
+def post_set_reel_generator(post_id: int, request: Request,
+                             reel_generator: str = Form(...),
+                             canva_template_id: str = Form("")):
+    if r := _guard(request): return r
+    post = db.get_post(post_id)
+    if not post:
+        return HTMLResponse("Post not found", status_code=404)
+    db.update_post_fields(str(post["date"]), reel_generator=reel_generator,
+                          canva_template_id=canva_template_id.strip() or None)
+    return RedirectResponse(f"/posts/{post_id}?saved=1", status_code=302)
+
+
+@app.post("/posts/{post_id}/generate-canva-reel")
+def generate_canva_reel_route(post_id: int, request: Request, background_tasks: BackgroundTasks):
+    if r := _guard(request): return r
+    background_tasks.add_task(_generate_canva_reel_for_post, post_id)
+    return RedirectResponse(f"/posts/{post_id}", status_code=302)
+
+
+@app.post("/posts/{post_id}/publish-instagram")
+def publish_instagram_route(post_id: int, request: Request, background_tasks: BackgroundTasks):
+    if r := _guard(request): return r
+    background_tasks.add_task(_do_publish_instagram, post_id)
+    return RedirectResponse(f"/posts/{post_id}", status_code=302)
+
+
+async def _generate_canva_reel_for_post(post_id: int):
+    post = db.get_post(post_id)
+    if not post or post["format"] != "reel":
+        return
+    from services.content import _generate_canva_reel
+    try:
+        await _generate_canva_reel(dict(post))
+    except Exception as e:
+        logger.error("Canva reel generation failed for post %s: %s", post_id, e)
+
+
+async def _do_publish_instagram(post_id: int):
+    from services.instagram import publish_reel
+    from services.spaces import upload_video, delete_video
+
+    post = db.get_post(post_id)
+    if not post or not post.get("video_bytes"):
+        logger.error("publish_instagram: post %s has no video", post_id)
+        return
+
+    video_bytes = bytes(post["video_bytes"])
+    caption = post.get("caption") or ""
+    spaces_key = None
+    try:
+        url, spaces_key = upload_video(video_bytes)
+        ig_post_id = publish_reel(url, caption)
+        if ig_post_id:
+            db.mark_post_instagram_sent(post_id)
+            logger.info("Published post %s to Instagram: %s", post_id, ig_post_id)
+        else:
+            logger.error("Instagram publish returned no post ID for post %s", post_id)
+    except Exception as e:
+        logger.error("Instagram publish failed for post %s: %s", post_id, e)
+    finally:
+        if spaces_key:
+            delete_video(spaces_key)

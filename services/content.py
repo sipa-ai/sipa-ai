@@ -191,7 +191,18 @@ async def generate_for_post(post: dict) -> None:
             db.set_post_caption(post_id, caption)
             logger.info("Generated caption for post %s (%s)", post_id, post["date"])
 
+        reel_generator = post.get("reel_generator") or "veo"
+
+        if reel_generator == "canva" and not post.get("video_bytes"):
+            await _generate_canva_reel(post)
+        elif reel_generator == "veo" and post.get("video_prompt") and not post.get("video_bytes"):
+            from services.media import generate_video
+            video_bytes, mime = await generate_video(post["video_prompt"])
+            db.set_post_video(post_id, video_bytes, mime)
+            logger.info("Generated Veo video for post %s (%s)", post_id, post["date"])
+
     # ── LinkedIn content ──────────────────────────────────────────────────────
+
     channels = [c.strip() for c in (post.get("channels") or "instagram").split(",")]
 
     if "linkedin_post" in channels and not post.get("linkedin_caption"):
@@ -203,3 +214,58 @@ async def generate_for_post(post: dict) -> None:
         article = await generate_linkedin_article(post)
         db.set_post_linkedin_article(post_id, article["title"], article["body"])
         logger.info("Generated LinkedIn article for post %s (%s)", post_id, post["date"])
+
+
+async def _generate_canva_reel(post: dict) -> None:
+    """Generate a Canva reel: Imagen background → Canva asset → autofill → export → store."""
+    import asyncio
+    from services.media import generate_image
+    from services import canva
+
+    post_id = post["id"]
+    template_id = post.get("canva_template_id")
+    if not template_id:
+        logger.warning("Canva reel requested for post %s but no canva_template_id set", post_id)
+        return
+
+    mappings = db.get_canva_field_mappings(template_id)
+    if not mappings:
+        logger.warning("No field mappings configured for Canva template %s", template_id)
+        return
+
+    # Generate background image via Imagen
+    image_prompt = post.get("image_prompt") or post.get("theme", "")
+    img_bytes, img_mime, model_used = await generate_image(image_prompt, "realistic")
+    logger.info("Generated background image for Canva reel post %s via %s", post_id, model_used)
+
+    # Upload image to Canva as an asset
+    asset_id = await asyncio.to_thread(canva.upload_asset, img_bytes, img_mime, "background")
+    if not asset_id:
+        logger.error("Canva asset upload failed for post %s", post_id)
+        return
+
+    # Build autofill payload from field mappings
+    fields = {}
+    for m in mappings:
+        field_name = m["canva_field_name"]
+        mapped_to = m["mapped_to"]
+        if mapped_to == "image":
+            fields[field_name] = asset_id
+        elif mapped_to == "theme":
+            fields[field_name] = post.get("theme", "")
+
+    # Autofill template → new design ID
+    design_id = await asyncio.to_thread(canva.autofill, template_id, fields)
+    if not design_id:
+        logger.error("Canva autofill failed for post %s", post_id)
+        return
+    logger.info("Canva autofill complete for post %s, design_id=%s", post_id, design_id)
+
+    # Export as MP4
+    video_bytes = await asyncio.to_thread(canva.export_video, design_id)
+    if not video_bytes:
+        logger.error("Canva export failed for post %s", post_id)
+        return
+
+    db.set_post_video(post_id, video_bytes, "video/mp4")
+    logger.info("Stored Canva MP4 for post %s (%d bytes)", post_id, len(video_bytes))

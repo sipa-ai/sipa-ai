@@ -108,7 +108,45 @@
     {% endif %}
 
     {% if post.format == 'reel' %}
-    <!-- Video prompt -->
+    <!-- Reel generator selector -->
+    <div>
+      <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">Reel generator</p>
+      <form method="post" action="/posts/{{ post.id }}/reel-generator" class="space-y-2">
+        <div class="flex gap-2">
+          <select name="reel_generator" id="reel_generator_select"
+            class="border border-stone-200 rounded-lg text-sm px-3 py-1.5 bg-white"
+            onchange="document.getElementById('canva_template_row').style.display = this.value === 'canva' ? 'flex' : 'none'">
+            <option value="veo" {% if (post.reel_generator or 'veo') == 'veo' %}selected{% endif %}>Veo (Google AI video)</option>
+            <option value="canva" {% if post.reel_generator == 'canva' %}selected{% endif %}>Canva template</option>
+          </select>
+          <button class="bg-stone-700 text-white px-3 py-1.5 rounded-lg text-sm hover:bg-stone-600">Save</button>
+        </div>
+        <div id="canva_template_row" class="flex gap-2 items-center"
+             style="display: {% if post.reel_generator == 'canva' %}flex{% else %}none{% endif %};">
+          {% if canva_templates %}
+          <select name="canva_template_id"
+            class="flex-1 border border-stone-200 rounded-lg text-sm px-3 py-1.5 bg-white">
+            <option value="">— Select a Canva template —</option>
+            {% for t in canva_templates %}
+            <option value="{{ t.id }}" {% if post.canva_template_id == t.id %}selected{% endif %}>{{ t.name }}</option>
+            {% endfor %}
+          </select>
+          {% if post.canva_template_id %}
+          <a href="/settings/canva/templates/{{ post.canva_template_id }}/fields"
+            class="text-xs text-violet-600 hover:text-violet-800 whitespace-nowrap">Map fields →</a>
+          {% endif %}
+          {% else %}
+          <p class="text-xs text-stone-400">
+            <a href="/settings/canva" class="underline">Connect Canva</a> to load templates.
+          </p>
+          <input type="hidden" name="canva_template_id" value="{{ post.canva_template_id or '' }}">
+          {% endif %}
+        </div>
+      </form>
+    </div>
+
+    <!-- Video prompt (Veo only) -->
+    {% if (post.reel_generator or 'veo') == 'veo' %}
     <div>
       <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-2">Veo prompt</p>
       {% if post.video_prompt %}
@@ -117,31 +155,71 @@
       <p class="text-sm text-stone-400 italic">No concept yet — generate one below.</p>
       {% endif %}
     </div>
+    {% endif %}
 
     <!-- Reel actions -->
     <div class="flex flex-wrap items-center gap-3">
-      {% if not post.video_prompt %}
-      <form method="post" action="/posts/{{ post.id }}/reel-concept">
-        <button class="px-4 py-2 rounded-lg text-sm bg-teal-700 text-white hover:bg-teal-600">Generate concept</button>
-      </form>
-      {% else %}
-      <form method="post" action="/posts/{{ post.id }}/reel-concept">
-        <button class="px-4 py-2 rounded-lg text-sm bg-stone-200 text-stone-700 hover:bg-stone-300">Regenerate concept</button>
-      </form>
-      {% if not post.video_bytes %}
-      <form method="post" action="/posts/{{ post.id }}/generate-video">
-        <button class="px-4 py-2 rounded-lg text-sm bg-amber-700 text-white hover:bg-amber-600">Generate video</button>
-      </form>
-      {% else %}
-      <form method="post" action="/posts/{{ post.id }}/generate-video">
-        <button class="px-4 py-2 rounded-lg text-sm bg-stone-200 text-stone-700 hover:bg-stone-300">Regenerate video</button>
-      </form>
-      {% if post.video_generated_at %}
-      <span class="text-xs text-stone-400">Generated {{ post.video_generated_at.strftime('%d %b %Y') }}</span>
-      {% endif %}
-      {% endif %}
+      {% if (post.reel_generator or 'veo') == 'veo' %}
+        {% if not post.video_prompt %}
+        <form method="post" action="/posts/{{ post.id }}/reel-concept">
+          <button class="px-4 py-2 rounded-lg text-sm bg-teal-700 text-white hover:bg-teal-600">Generate concept</button>
+        </form>
+        {% else %}
+        <form method="post" action="/posts/{{ post.id }}/reel-concept">
+          <button class="px-4 py-2 rounded-lg text-sm bg-stone-200 text-stone-700 hover:bg-stone-300">Regenerate concept</button>
+        </form>
+        {% if not post.video_bytes %}
+        <form method="post" action="/posts/{{ post.id }}/generate-video">
+          <button class="px-4 py-2 rounded-lg text-sm bg-amber-700 text-white hover:bg-amber-600">Generate Veo video</button>
+        </form>
+        {% else %}
+        <form method="post" action="/posts/{{ post.id }}/generate-video">
+          <button class="px-4 py-2 rounded-lg text-sm bg-stone-200 text-stone-700 hover:bg-stone-300">Regenerate Veo video</button>
+        </form>
+        {% if post.video_generated_at %}
+        <span class="text-xs text-stone-400">Generated {{ post.video_generated_at.strftime('%d %b %Y') }}</span>
+        {% endif %}
+        {% endif %}
+        {% endif %}
+      {% elif post.reel_generator == 'canva' %}
+        {% if post.canva_template_id %}
+        <form method="post" action="/posts/{{ post.id }}/generate-canva-reel">
+          <button class="px-4 py-2 rounded-lg text-sm bg-violet-700 text-white hover:bg-violet-600">
+            {% if post.video_bytes %}Regenerate Canva reel{% else %}Generate Canva reel{% endif %}
+          </button>
+        </form>
+        {% if post.video_generated_at %}
+        <span class="text-xs text-stone-400">Generated {{ post.video_generated_at.strftime('%d %b %Y') }}</span>
+        {% endif %}
+        {% else %}
+        <p class="text-xs text-stone-400 italic">Select a Canva template above first.</p>
+        {% endif %}
       {% endif %}
     </div>
+
+    <!-- Instagram publish -->
+    {% if post.video_bytes %}
+    <div class="border-t border-stone-100 pt-4">
+      <p class="text-xs font-semibold uppercase tracking-wide text-pink-500 mb-3">Instagram</p>
+      {% if post.instagram_posted_at %}
+      <span class="px-3 py-2 rounded-lg text-sm bg-stone-100 text-stone-500">
+        Posted {{ post.instagram_posted_at.strftime('%d %b %Y') }}
+      </span>
+      {% elif instagram_connected and post.caption %}
+      <form method="post" action="/posts/{{ post.id }}/publish-instagram">
+        <button class="px-4 py-2 rounded-lg text-sm bg-pink-600 text-white hover:bg-pink-700">
+          Publish Reel to Instagram
+        </button>
+      </form>
+      {% elif not instagram_connected %}
+      <a href="/settings/instagram" class="px-4 py-2 rounded-lg text-sm border border-pink-200 text-pink-600 hover:bg-pink-50">
+        Connect Instagram →
+      </a>
+      {% elif not post.caption %}
+      <p class="text-xs text-stone-400 italic">Generate a caption first.</p>
+      {% endif %}
+    </div>
+    {% endif %}
     {% endif %}
 
     <!-- Caption -->

@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Template Field Mapping — {{ app_name }}{% endblock %}
+{% block content %}
+
+<div class="flex items-center gap-3 mb-6">
+  <a href="/settings/canva" class="text-sm text-stone-400 hover:text-stone-600 transition">← Canva settings</a>
+  <span class="text-stone-300">/</span>
+  <h2 class="text-xl font-semibold text-stone-800">Template field mapping</h2>
+</div>
+
+{% if saved %}
+<div class="mb-4 px-4 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg text-sm">Mappings saved.</div>
+{% endif %}
+
+<div class="max-w-xl">
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-5">
+    <p class="text-xs text-stone-400 mb-5">
+      Template ID: <code class="bg-stone-100 px-1 rounded font-mono">{{ template_id }}</code><br>
+      For each field in this template, choose what data to inject:
+      <strong>Theme</strong> (post theme text), <strong>Image</strong> (Imagen-generated background), or <strong>Ignore</strong>.
+    </p>
+
+    {% if fields %}
+    <form method="post" action="/settings/canva/templates/{{ template_id }}/fields" class="space-y-4">
+      {% for field in fields %}
+      <div class="flex items-center gap-4 py-2 border-b border-stone-100 last:border-0">
+        <div class="flex-1">
+          <p class="text-sm font-medium text-stone-700">{{ field.name }}</p>
+          <p class="text-xs text-stone-400">type: {{ field.type }}</p>
+        </div>
+        <select name="mapped_to_{{ field.name }}"
+          class="border border-stone-200 rounded-lg text-sm px-3 py-1.5 bg-white focus:outline-none focus:ring-1 focus:ring-violet-400">
+          <option value="ignore" {% if field.mapped_to == 'ignore' %}selected{% endif %}>Ignore</option>
+          <option value="theme" {% if field.mapped_to == 'theme' %}selected{% endif %}>Theme (text)</option>
+          <option value="image" {% if field.mapped_to == 'image' %}selected{% endif %}>Image (background)</option>
+        </select>
+      </div>
+      {% endfor %}
+      <button type="submit"
+        class="mt-4 text-sm bg-stone-800 text-white px-4 py-2 rounded-lg hover:bg-stone-700 transition">
+        Save mappings
+      </button>
+    </form>
+    {% else %}
+    <p class="text-sm text-stone-400 italic">No data fields found in this template. Make sure your Canva design has named text or image elements.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}
