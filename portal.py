@@ -573,7 +573,7 @@ def update_style(post_id: int, request: Request, background_tasks: BackgroundTas
     if r := _guard(request): return r
     post = db.get_post(post_id)
     if post and post["image_style_type"] != image_style_type:
-        db.update_post_fields(str(post["date"]), image_style_type=image_style_type)
+        db.update_post_fields(post_id, image_style_type=image_style_type)
         db.clear_post_images(post_id)
         background_tasks.add_task(_generate_for_post_id, post_id)
     return RedirectResponse(f"/posts/{post_id}", status_code=302)

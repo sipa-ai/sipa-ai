@@ -335,6 +335,10 @@ _CONTENT_TOOLS = [
                     "enum": ["realistic", "artistic"],
                     "description": "realistic=photographic, artistic=illustrated/creative (static and carousel only)",
                 },
+                "channels": {
+                    "type": "string",
+                    "description": "Comma-separated publish destinations. Valid values: instagram, linkedin_post, linkedin_article. Default: instagram. Examples: 'instagram', 'linkedin_post', 'instagram,linkedin_post'",
+                },
                 "n_slides": {"type": "integer"},
                 "video_prompt": {"type": "string", "description": "Video generation prompt (reel only). Cinematic, 9:16, 8s."},
                 "slides": {
@@ -364,20 +368,22 @@ _CONTENT_TOOLS = [
     },
     {
         "name": "update_post",
-        "description": "Update one or more fields of an existing post by date.",
+        "description": "Update one or more fields of an existing post by id. Use get_all_posts to find the id.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "date": {"type": "string"},
+                "id": {"type": "integer", "description": "Post id (from get_all_posts)"},
+                "date": {"type": "string", "description": "New date ISO YYYY-MM-DD (to move the post)"},
                 "format": {"type": "string", "enum": ["static", "carousel", "reel"]},
                 "caption": {"type": "string"},
                 "theme": {"type": "string"},
                 "image_prompt": {"type": "string"},
                 "image_style_type": {"type": "string", "enum": ["realistic", "artistic"]},
                 "pillar": {"type": "string"},
+                "channels": {"type": "string", "description": "Comma-separated: instagram, linkedin_post, linkedin_article"},
                 "video_prompt": {"type": "string", "description": "Video generation prompt (reel only)"},
             },
-            "required": ["date"],
+            "required": ["id"],
         },
     },
     {
@@ -446,18 +452,26 @@ def _execute_tool(name: str, inp: dict) -> str:
         db.update_brand_guidelines(inp["content"])
         return "Brand guidelines updated."
     if name == "create_post":
+        new_channels = set((inp.get("channels") or "instagram").split(","))
+        existing = db.get_posts_for_date(inp["date"])
+        conflicts = [
+            f"id={p['id']} channels={p['channels']}"
+            for p in existing
+            if new_channels & set((p.get("channels") or "instagram").split(","))
+        ]
         try:
             post_id = db.create_post(**inp)
-            return (
-                f"Post created (id={post_id}, date={inp['date']}, format={inp['format']}). "
-                "It is saved as a draft and can be reviewed and approved in the portal."
-            )
+            msg = f"Post created (id={post_id}, date={inp['date']}, format={inp['format']})."
+            if conflicts:
+                msg += f" Warning: existing post(s) for this date share the same channel: {', '.join(conflicts)}."
+            msg += " Saved as draft — review and approve in the portal."
+            return msg
         except Exception as e:
             return f"Error creating post: {e}"
     if name == "update_post":
-        date_val = inp.pop("date")
-        db.update_post_fields(date_val, **inp)
-        return f"Post for {date_val} updated."
+        post_id = inp.pop("id")
+        db.update_post_fields(post_id, **inp)
+        return f"Post {post_id} updated."
 
     # ── Agent management ──────────────────────────────────────────────────
     if name == "create_agent":

@@ -18,27 +18,25 @@ def _allowed_user_ids() -> list[int]:
 
 async def job_content(bot: Bot) -> None:
     today = date.today().strftime("%Y-%m-%d")
-    post = db.get_post_for_date(today)
+    posts = db.get_post_for_date(today)
 
-    if not post:
+    if not posts:
         logger.info("No approved content scheduled for %s", today)
         return
 
-    post_id = post["id"]
-    logger.info("Sending content for %s — %s", today, post["theme"])
-
-    try:
-        if post["format"] in ("static", "carousel"):
-            caption = f"Caption — {today}\n\n{post['caption'] or ''}"
+    for post in posts:
+        post_id = post["id"]
+        logger.info("Sending content for %s — %s (id=%s)", today, post["theme"], post_id)
+        try:
+            if post["format"] in ("static", "carousel"):
+                caption = f"Caption — {today}\n\n{post['caption'] or ''}"
+                for user_id in _allowed_user_ids():
+                    await send_post_media(dict(post), user_id, bot, caption)
+            db.mark_post_sent(post_id)
+            logger.info("Content sent for %s (id=%s)", today, post_id)
+        except ValueError as e:
+            logger.error("Post %s has no media — skipping: %s", post_id, e)
+        except Exception as e:
+            logger.error("Content job failed for post %s (%s): %s", post_id, today, e)
             for user_id in _allowed_user_ids():
-                await send_post_media(dict(post), user_id, bot, caption)
-
-        db.mark_post_sent(post_id)
-        logger.info("Content sent for %s", today)
-
-    except ValueError as e:
-        logger.error("Post %s has no media — skipping: %s", post_id, e)
-    except Exception as e:
-        logger.error("Content job failed for %s: %s", today, e)
-        for user_id in _allowed_user_ids():
-            await bot.send_message(chat_id=user_id, text=f"Content delivery failed for {today}:\n{e}")
+                await bot.send_message(chat_id=user_id, text=f"Content delivery failed for {today} (id={post_id}):\n{e}")

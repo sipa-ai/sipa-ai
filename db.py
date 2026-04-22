@@ -226,6 +226,19 @@ def init_db():
             )
         """)
 
+        # Migrate: drop UNIQUE constraint on posts.date (allow multiple posts per date)
+        cur.execute("""
+            DO $$
+            BEGIN
+              IF EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE table_name = 'posts' AND constraint_name = 'posts_date_key'
+              ) THEN
+                ALTER TABLE posts DROP CONSTRAINT posts_date_key;
+              END IF;
+            END $$
+        """)
+
         # Migrate existing posts table — add new columns if they don't exist
         for col, definition in [
             ("image_style_type",    "TEXT DEFAULT 'realistic'"),
@@ -995,14 +1008,25 @@ def get_post(post_id: int):
 
 
 def get_post_for_date(date_str: str):
-    """Return today's approved, unsent post including image bytes."""
+    """Return all approved, unsent posts for a date including image bytes."""
     with get_conn() as conn:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
             SELECT * FROM posts
             WHERE date = %s AND approved = TRUE AND posted_at IS NULL
         """, (date_str,))
-        return cur.fetchone()
+        return cur.fetchall()
+
+
+def get_posts_for_date(date_str: str):
+    """Return all posts for a date (metadata only, no binary data)."""
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, date, format, pillar, theme, channels, approved
+            FROM posts WHERE date = %s
+        """, (date_str,))
+        return cur.fetchall()
 
 
 def get_post_meta_by_date(date_str: str):
@@ -1019,19 +1043,19 @@ def get_post_meta_by_date(date_str: str):
         return cur.fetchone()
 
 
-def update_post_fields(date_str: str, **fields):
-    """Update any combination of text fields on a post by date."""
+def update_post_fields(post_id: int, **fields):
+    """Update any combination of text fields on a post by id."""
     allowed = {"caption", "theme", "image_prompt", "image_style_type", "pillar", "n_slides",
-               "image_style", "format", "video_prompt", "channels",
+               "image_style", "format", "video_prompt", "channels", "date",
                "linkedin_caption", "linkedin_title", "linkedin_article_body", "project_id"}
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not updates:
         return
     set_clause = ", ".join(f"{k} = %s" for k in updates)
-    values = list(updates.values()) + [date_str]
+    values = list(updates.values()) + [post_id]
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(f"UPDATE posts SET {set_clause} WHERE date = %s", values)
+        cur.execute(f"UPDATE posts SET {set_clause} WHERE id = %s", values)
 
 
 def set_post_project(post_id: int, project_id):
@@ -1201,21 +1225,17 @@ def upsert_slide(post_id: int, slide: dict):
 
 def create_post(date, format, pillar, theme, image_prompt=None,
                 image_style=None, image_style_type="realistic",
-                n_slides=None, slides=None, video_prompt=None) -> int:
+                n_slides=None, slides=None, video_prompt=None, channels=None) -> int:
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO posts (date, format, pillar, theme, image_prompt, image_style,
-                               image_style_type, n_slides, video_prompt)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-            ON CONFLICT (date) DO NOTHING
+                               image_style_type, n_slides, video_prompt, channels)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             RETURNING id
         """, (date, format, pillar, theme, image_prompt, image_style,
-              image_style_type, n_slides, video_prompt))
-        row = cur.fetchone()
-        if row is None:
-            raise ValueError(f"A post already exists for {date}. Use update_post to modify it.")
-        post_id = row[0]
+              image_style_type, n_slides, video_prompt, channels or "instagram"))
+        post_id = cur.fetchone()[0]
         if slides:
             for s in slides:
                 cur.execute("""
