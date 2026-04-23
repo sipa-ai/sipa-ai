@@ -24,9 +24,9 @@
       {% endif %}
     {% elif post.format == 'static' %}
       {% if post.image_bytes %}
-      <img src="/posts/{{ post.id }}/image" class="w-full rounded-xl shadow aspect-square object-cover">
+      <img src="/posts/{{ post.id }}/image" class="w-full rounded-xl shadow object-cover {% if 'linkedin_post' in channels %}aspect-video{% else %}aspect-square{% endif %}">
       {% else %}
-      <div class="w-full aspect-square bg-stone-100 rounded-xl flex items-center justify-center text-stone-400">No image yet</div>
+      <div class="w-full bg-stone-100 rounded-xl flex items-center justify-center text-stone-400 {% if 'linkedin_post' in channels %}aspect-video{% else %}aspect-square{% endif %}">No image yet</div>
       {% endif %}
     {% else %}
       {% if slides %}
