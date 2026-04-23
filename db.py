@@ -226,13 +226,21 @@ def init_db():
             )
         """)
 
-        # Migrate: copy linkedin_caption → caption where caption is empty
+        # Migrate: copy linkedin_caption → caption where caption is empty (if column still exists)
         cur.execute("""
-            UPDATE posts
-            SET caption = linkedin_caption
-            WHERE linkedin_caption IS NOT NULL
-              AND linkedin_caption != ''
-              AND (caption IS NULL OR caption = '')
+            DO $$
+            BEGIN
+              IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'posts' AND column_name = 'linkedin_caption'
+              ) THEN
+                UPDATE posts
+                SET caption = linkedin_caption
+                WHERE linkedin_caption IS NOT NULL
+                  AND linkedin_caption != ''
+                  AND (caption IS NULL OR caption = '');
+              END IF;
+            END $$
         """)
 
         # Migrate: drop linkedin_caption column (now unified into caption)
