@@ -179,14 +179,7 @@
       <p class="text-xs font-semibold uppercase tracking-wide text-blue-600">LinkedIn</p>
 
       {% if 'linkedin_post' in channels %}
-      <div>
-        <p class="text-xs font-semibold uppercase tracking-wide text-stone-400 mb-1">LinkedIn caption</p>
-        {% if post.linkedin_caption %}
-        <div class="text-sm text-stone-700 bg-blue-50 rounded-lg p-3 leading-relaxed whitespace-pre-wrap max-h-48 overflow-y-auto">{{ post.linkedin_caption }}</div>
-        {% else %}
-        <p class="text-sm text-stone-400 italic">Not generated yet.</p>
-        {% endif %}
-      </div>
+      <p class="text-xs text-stone-400">Caption shown above.</p>
       {% endif %}
 
       {% if 'linkedin_article' in channels %}
@@ -210,11 +203,11 @@
       <div class="flex flex-wrap gap-3">
         <form method="post" action="/posts/{{ post.id }}/generate-linkedin">
           <button class="px-4 py-2 rounded-lg text-sm bg-blue-700 text-white hover:bg-blue-800">
-            {% if post.linkedin_caption or post.linkedin_title %}Regenerate LinkedIn{% else %}Generate LinkedIn{% endif %}
+            {% if post.caption or post.linkedin_title %}Regenerate LinkedIn{% else %}Generate LinkedIn{% endif %}
           </button>
         </form>
 
-        {% if 'linkedin_post' in channels and post.linkedin_caption %}
+        {% if 'linkedin_post' in channels and post.caption %}
           {% if post.linkedin_posted_at %}
           <span class="px-3 py-2 rounded-lg text-sm bg-stone-100 text-stone-500">
             Posted to LinkedIn {{ post.linkedin_posted_at.strftime('%d %b %Y') }}

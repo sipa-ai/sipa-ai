@@ -144,17 +144,14 @@ async def generate_for_post(post: dict) -> None:
 
     post_id = post["id"]
     style_type = post.get("image_style_type") or "realistic"
+    channels = [c.strip() for c in (post.get("channels") or "instagram").split(",")]
 
+    # ── Image generation ──────────────────────────────────────────────────────
     if post["format"] == "static":
         if not post.get("has_image") and not post.get("image_bytes") and post.get("image_prompt"):
             img_bytes, mime, model_used = await generate_image(post["image_prompt"], style_type)
             db.set_post_image(post_id, img_bytes, mime, model_used, post["image_prompt"])
             logger.info("Generated image for post %s (%s) via %s", post_id, post["date"], model_used)
-
-        if not post.get("caption"):
-            caption = await generate_caption(post)
-            db.set_post_caption(post_id, caption)
-            logger.info("Generated caption for post %s (%s)", post_id, post["date"])
 
     elif post["format"] == "carousel":
         slides = db.get_slides_for_post(post_id)
@@ -179,26 +176,17 @@ async def generate_for_post(post: dict) -> None:
                     slide["slide_number"], post_id, model_used,
                 )
 
-        if not post.get("caption"):
-            full_slides = db.get_slides_for_post(post_id)
-            caption = await generate_caption(post, full_slides)
-            db.set_post_caption(post_id, caption)
-            logger.info("Generated caption for post %s (%s)", post_id, post["date"])
+    # ── Caption generation ────────────────────────────────────────────────────
+    if not post.get("caption"):
+        if "linkedin_post" in channels:
+            caption = await generate_linkedin_caption(post)
+        else:
+            slides = db.get_slides_for_post(post_id) if post["format"] == "carousel" else None
+            caption = await generate_caption(post, slides)
+        db.set_post_caption(post_id, caption)
+        logger.info("Generated caption for post %s (%s)", post_id, post["date"])
 
-    elif post["format"] == "reel":
-        if not post.get("caption"):
-            caption = await generate_caption(post)
-            db.set_post_caption(post_id, caption)
-            logger.info("Generated caption for post %s (%s)", post_id, post["date"])
-
-    # ── LinkedIn content ──────────────────────────────────────────────────────
-    channels = [c.strip() for c in (post.get("channels") or "instagram").split(",")]
-
-    if "linkedin_post" in channels and not post.get("linkedin_caption"):
-        li_caption = await generate_linkedin_caption(post)
-        db.set_post_linkedin_caption(post_id, li_caption)
-        logger.info("Generated LinkedIn caption for post %s (%s)", post_id, post["date"])
-
+    # ── LinkedIn article ──────────────────────────────────────────────────────
     if "linkedin_article" in channels and not post.get("linkedin_title"):
         article = await generate_linkedin_article(post)
         db.set_post_linkedin_article(post_id, article["title"], article["body"])

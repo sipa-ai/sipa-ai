@@ -226,6 +226,20 @@ def init_db():
             )
         """)
 
+        # Migrate: copy linkedin_caption → caption where caption is empty
+        cur.execute("""
+            UPDATE posts
+            SET caption = linkedin_caption
+            WHERE linkedin_caption IS NOT NULL
+              AND linkedin_caption != ''
+              AND (caption IS NULL OR caption = '')
+        """)
+
+        # Migrate: drop linkedin_caption column (now unified into caption)
+        cur.execute("""
+            ALTER TABLE posts DROP COLUMN IF EXISTS linkedin_caption
+        """)
+
         # Migrate: drop UNIQUE constraint on posts.date (allow multiple posts per date)
         cur.execute("""
             DO $$
@@ -249,7 +263,6 @@ def init_db():
             ("video_mime_type",     "TEXT"),
             ("video_generated_at",  "TIMESTAMP"),
             ("channels",            "TEXT DEFAULT 'instagram'"),
-            ("linkedin_caption",    "TEXT"),
             ("linkedin_title",      "TEXT"),
             ("linkedin_article_body", "TEXT"),
             ("linkedin_posted_at",  "TIMESTAMP"),
@@ -986,7 +999,7 @@ def get_all_posts():
             SELECT po.id, po.date, po.format, po.pillar, po.theme, po.image_prompt, po.image_style,
                    po.image_style_type, po.image_model_used, po.image_prompt_sent,
                    po.n_slides, po.caption, po.image_mime_type, po.video_prompt,
-                   po.channels, po.linkedin_caption, po.linkedin_title,
+                   po.channels, po.linkedin_title,
                    po.project_id,
                    p.name AS project_name,
                    (po.linkedin_article_body IS NOT NULL) AS has_linkedin_article,
@@ -1047,7 +1060,7 @@ def update_post_fields(post_id: int, **fields):
     """Update any combination of text fields on a post by id."""
     allowed = {"caption", "theme", "image_prompt", "image_style_type", "pillar", "n_slides",
                "image_style", "format", "video_prompt", "channels", "date",
-               "linkedin_caption", "linkedin_title", "linkedin_article_body", "project_id"}
+               "linkedin_title", "linkedin_article_body", "project_id"}
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not updates:
         return
@@ -1179,12 +1192,6 @@ def mark_post_sent(post_id: int):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("UPDATE posts SET posted_at = NOW() WHERE id = %s", (post_id,))
-
-
-def set_post_linkedin_caption(post_id: int, caption: str):
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("UPDATE posts SET linkedin_caption = %s WHERE id = %s", (caption, post_id))
 
 
 def set_post_linkedin_article(post_id: int, title: str, body: str):

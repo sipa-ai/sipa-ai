@@ -678,7 +678,7 @@ async def _generate_linkedin_for_post(post_id: int):
     try:
         if "linkedin_post" in channels:
             caption = await generate_linkedin_caption(dict(post))
-            db.set_post_linkedin_caption(post_id, caption)
+            db.set_post_caption(post_id, caption)
             logger.info("Generated LinkedIn caption for post %d", post_id)
         if "linkedin_article" in channels:
             article = await generate_linkedin_article(dict(post))
@@ -701,8 +701,8 @@ async def _do_post_linkedin(post_id: int):
     image_bytes = bytes(post["image_bytes"]) if post.get("image_bytes") else None
     mime_type = post.get("image_mime_type") or "image/jpeg"
     try:
-        if "linkedin_post" in channels and post.get("linkedin_caption"):
-            result = create_post(account_id, post["linkedin_caption"], image_bytes, mime_type)
+        if "linkedin_post" in channels and post.get("caption"):
+            result = create_post(account_id, post["caption"], image_bytes, mime_type)
             if result:
                 db.mark_post_linkedin_sent(post_id)
                 logger.info("Posted to LinkedIn for post %d: %s", post_id, result)
