@@ -944,6 +944,9 @@ def settings_page(request: Request):
             "gemini_image_model",
             "gemini-3.1-flash-image-preview,gemini-2.5-flash-image",
         ),
+        "github_repo": db.get_setting("github_repo", ""),
+        "github_token": db.get_setting("github_token", ""),
+        "github_branch": db.get_setting("github_branch", "main"),
         "saved": request.query_params.get("saved") == "1",
     })
 
@@ -986,6 +989,21 @@ def settings_save_owner_name(request: Request, owner_name: str = Form("")):
 def settings_save_gemini_models(request: Request, gemini_image_model: str = Form("")):
     if r := _guard(request): return r
     db.set_setting("gemini_image_model", gemini_image_model.strip())
+    return RedirectResponse("/settings?saved=1", status_code=302)
+
+
+@app.post("/settings/github")
+def settings_save_github(
+    request: Request,
+    github_repo: str = Form(""),
+    github_token: str = Form(""),
+    github_branch: str = Form("main"),
+):
+    if r := _guard(request): return r
+    db.set_setting("github_repo", github_repo.strip())
+    if github_token.strip():
+        db.set_setting("github_token", github_token.strip())
+    db.set_setting("github_branch", github_branch.strip() or "main")
     return RedirectResponse("/settings?saved=1", status_code=302)
 
 

@@ -195,8 +195,8 @@ def _build_router_tools(owner_name: str) -> list:
                 "model": {"type": "string", "description": "Model ID — default: claude-sonnet-4-6"},
                 "tool_set": {
                     "type": "string",
-                    "enum": ["default", "content_writer"],
-                    "description": "Tool set for the agent. 'default' = read-only (tasks, posts). 'content_writer' = can also create and update posts.",
+                    "enum": ["default", "content_writer", "website"],
+                    "description": "Tool set for the agent. 'default' = read-only (tasks, posts). 'content_writer' = can also create and update posts. 'website' = can clone, edit, and push to the configured GitHub website repo.",
                 },
             },
             "required": ["name", "description", "system_prompt", "model"],
@@ -411,10 +411,64 @@ _DEFAULT_AGENT_TOOLS = [
     },
 ]
 
+_WEBSITE_TOOLS = [
+    {
+        "name": "website_list_files",
+        "description": (
+            "Clone the configured website repo and return the file tree. "
+            "Call this first to start a website editing session. "
+            "Returns a session_id to pass to all subsequent website tools."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "website_read_file",
+        "description": "Read a file from the website repo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "Session ID from website_list_files"},
+                "path": {"type": "string", "description": "File path relative to repo root"},
+            },
+            "required": ["session_id", "path"],
+        },
+    },
+    {
+        "name": "website_edit_file",
+        "description": (
+            "Write new content to a file in the website repo. "
+            "Returns a text diff (HTML stripped) showing what changed. "
+            "Show this diff to the user, then call website_commit."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "path": {"type": "string", "description": "File path relative to repo root"},
+                "content": {"type": "string", "description": "Full new file content"},
+            },
+            "required": ["session_id", "path", "content"],
+        },
+    },
+    {
+        "name": "website_commit",
+        "description": "Commit and push all edited files to GitHub, then clean up the session.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "message": {"type": "string", "description": "Commit message describing the change"},
+            },
+            "required": ["session_id", "message"],
+        },
+    },
+]
+
 # Map tool_set values (stored in the agents DB table) to their tool lists.
 _TOOL_SETS: dict[str, list] = {
     "default": _DEFAULT_AGENT_TOOLS,
     "content_writer": _CONTENT_TOOLS,
+    "website": _WEBSITE_TOOLS,
 }
 
 
@@ -554,6 +608,37 @@ def _execute_tool(name: str, inp: dict) -> str:
             return f"No project named '{inp['project_name']}' found."
         db.set_post_project(post_row["id"], project["id"])
         return f"Post {inp['date']} assigned to project '{project['name']}'."
+
+    # ── Website editing tools ─────────────────────────────────────────────
+    if name == "website_list_files":
+        from services import github as gh
+        try:
+            tmpdir = gh.clone()
+            files = gh.list_files(tmpdir)
+            return json.dumps({"session_id": tmpdir, "files": files})
+        except Exception as e:
+            return f"Error: {e}"
+
+    if name == "website_read_file":
+        from services import github as gh
+        return gh.read_file(inp["session_id"], inp["path"])
+
+    if name == "website_edit_file":
+        from services import github as gh
+        old = gh.read_file(inp["session_id"], inp["path"])
+        gh.write_file(inp["session_id"], inp["path"], inp["content"])
+        diff = gh.text_diff(old, inp["content"], inp["path"])
+        return f"File updated.\n\nText changes:\n{diff}"
+
+    if name == "website_commit":
+        from services import github as gh
+        try:
+            result = gh.commit_and_push(inp["session_id"], inp["message"])
+        except Exception as e:
+            result = f"Git error: {e}"
+        finally:
+            gh.cleanup(inp["session_id"])
+        return result
 
     # ── Async-only tools (not available in all contexts) ──────────────────
     if name in ("send_approved_email", "send_post_image", "delegate_to_agent"):

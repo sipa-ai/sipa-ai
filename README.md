@@ -21,6 +21,7 @@ SIPA connects to your Telegram and gives you a personal AI team. A **router agen
 - **Web portal** — FastAPI admin UI at `/` for managing posts, tasks, contacts, agents, and settings
 - **Brand context** — one `context/brand.md` file injected into every agent's system prompt
 - **Multi-provider email** — Gmail and Outlook in parallel, routes by contact preference
+- **Website editing** — a specialist agent can clone a GitHub repo, edit HTML files, and push changes; shows text diff before committing
 
 ---
 
@@ -110,6 +111,14 @@ All runtime settings are stored in the database and editable via the portal at `
 
 Email accounts and LinkedIn accounts are managed at `/settings/email` and `/settings/linkedin`.
 
+GitHub website repo settings are managed at `/settings` (GitHub section):
+
+| Setting | Description |
+|---|---|
+| `github_repo` | Repository in `username/repo` format |
+| `github_token` | Personal Access Token with `repo` scope |
+| `github_branch` | Branch to clone and push to (default: `main`) |
+
 ---
 
 ## Creating specialist agents
@@ -125,13 +134,29 @@ Via the portal: go to `/team/new`.
 
 ## Giving agents extra tools
 
-By default, specialist agents get read-only tools (`get_all_tasks`, `get_all_posts`). To give an agent write access, map its name in `_AGENT_TOOLS` in `bot.py`:
+Agents are assigned a `tool_set` which determines what tools they can use:
 
-```python
-_AGENT_TOOLS = {
-    "content": _CONTENT_TOOLS,  # create_post, update_post, + read tools
-}
-```
+| Tool set | Tools | Use for |
+|---|---|---|
+| `default` | `get_all_tasks`, `get_all_posts` | Read-only assistants |
+| `content_writer` | create/update posts + read tools | Content calendar agents |
+| `website` | clone, read, edit, commit GitHub repo | Website editing agents |
+
+When creating an agent via Telegram, tell the router what the agent should do and it will pick the right tool set. Or set it explicitly:
+> *"Create a website agent with the website tool set"*
+
+---
+
+## Website editing
+
+1. Configure a GitHub Personal Access Token (PAT) with `repo` scope and your repo in `/settings`
+2. Create a website specialist agent via Telegram:
+   > *"Create a new team member who manages our website — it's a static HTML site on GitHub"*
+3. The router generates a system prompt and saves the agent with `tool_set: website`
+4. Send editing requests:
+   > *"Update the homepage headline to 'We build great software'"*
+
+The agent clones the repo to a temp directory, reads the relevant files, edits them, shows you the changed text (HTML stripped), then commits and pushes automatically.
 
 ---
 
