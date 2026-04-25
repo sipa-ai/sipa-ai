@@ -135,6 +135,20 @@ _AGENT_TOOLS = {
 
 ---
 
+## LinkedIn setup
+
+1. Go to [developers.linkedin.com](https://www.linkedin.com/developers/) and create an app
+2. Under the **Products** tab, request access to:
+   - **Sign In with LinkedIn using OpenID Connect** (unlocks `openid`, `profile`, `email`) — approved instantly
+   - **Share on LinkedIn** (unlocks `w_member_social`) — may require a short review
+3. Once both products show as *Added*, go to the **Auth** tab and confirm these scopes are listed: `openid`, `profile`, `email`, `w_member_social`
+4. Add your callback URL to the **Authorized Redirect URLs**: `https://your-domain/settings/linkedin/callback`
+5. In the portal go to `/settings/linkedin`, create an account with your Client ID and Client Secret, and click **Connect**
+
+> If you get `unauthorized_scope_error` during OAuth, the Products have not been approved yet or the redirect URL doesn't exactly match.
+
+---
+
 ## Scheduled reports
 
 Add a `## Daily Report` or `## Weekly Report` section to the router's system prompt (editable in the portal at `/team`). The section body tells the router what to do — it runs as a full agentic loop and sends the result to Telegram.
