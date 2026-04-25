@@ -147,13 +147,13 @@ async def generate_for_post(post: dict) -> None:
     channels = [c.strip() for c in (post.get("channels") or "instagram").split(",")]
 
     # ── Image generation ──────────────────────────────────────────────────────
-    if post["format"] == "static":
+    if post["format"] == "static" and not post.get("image_locked"):
         if not post.get("has_image") and not post.get("image_bytes") and post.get("image_prompt"):
             img_bytes, mime, model_used = await generate_image(post["image_prompt"], style_type)
             db.set_post_image(post_id, img_bytes, mime, model_used, post["image_prompt"])
             logger.info("Generated image for post %s (%s) via %s", post_id, post["date"], model_used)
 
-    elif post["format"] == "carousel":
+    elif post["format"] == "carousel" and not post.get("image_locked"):
         slides = db.get_slides_for_post(post_id)
         if not slides and post.get("n_slides"):
             slide_plan = await generate_slide_plan(post)
@@ -177,7 +177,7 @@ async def generate_for_post(post: dict) -> None:
                 )
 
     # ── Caption generation ────────────────────────────────────────────────────
-    if not post.get("caption"):
+    if not post.get("caption") and not post.get("caption_locked"):
         if "linkedin_post" in channels:
             caption = await generate_linkedin_caption(post)
         else:

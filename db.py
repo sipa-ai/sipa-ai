@@ -267,6 +267,8 @@ def init_db():
             ("image_model_used",    "TEXT"),
             ("image_prompt_sent",   "TEXT"),
             ("video_prompt",        "TEXT"),
+            ("image_locked",        "BOOLEAN DEFAULT FALSE"),
+            ("caption_locked",      "BOOLEAN DEFAULT FALSE"),
             ("video_bytes",         "BYTEA"),
             ("video_mime_type",     "TEXT"),
             ("video_generated_at",  "TIMESTAMP"),
@@ -1194,6 +1196,27 @@ def set_post_approved(post_id: int, approved: bool):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("UPDATE posts SET approved = %s WHERE id = %s", (approved, post_id))
+
+
+def set_post_image_locked(post_id: int, locked: bool):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE posts SET image_locked = %s WHERE id = %s", (locked, post_id))
+
+
+def set_post_caption_locked(post_id: int, locked: bool):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE posts SET caption_locked = %s WHERE id = %s", (locked, post_id))
+
+
+def reset_post_locks(post_id: int):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE posts SET image_locked = FALSE, caption_locked = FALSE WHERE id = %s",
+            (post_id,),
+        )
 
 
 def mark_post_sent(post_id: int):

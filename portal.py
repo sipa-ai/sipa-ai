@@ -4,7 +4,7 @@ import logging
 import os
 
 import db
-from fastapi import BackgroundTasks, FastAPI, Form, Request
+from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -512,6 +512,61 @@ def post_detail(post_id: int, request: Request):
         "projects": db.get_all_projects(),
         "saved": request.query_params.get("saved") == "1",
     })
+
+
+@app.post("/posts/{post_id}/edit-content")
+async def post_edit_content(
+    post_id: int, request: Request, background_tasks: BackgroundTasks,
+    caption: str = Form(""),
+    image_prompt: str = Form(""),
+    linkedin_title: str = Form(""),
+    linkedin_article_body: str = Form(""),
+):
+    if r := _guard(request): return r
+    post = db.get_post(post_id)
+    if not post:
+        return HTMLResponse("Post not found", status_code=404)
+
+    updates = {}
+    if caption.strip():
+        updates["caption"] = caption.strip()
+        db.set_post_caption_locked(post_id, True)
+
+    if image_prompt.strip():
+        prompt_changed = image_prompt.strip() != (post.get("image_prompt") or "").strip()
+        updates["image_prompt"] = image_prompt.strip()
+        if prompt_changed and not post.get("image_locked"):
+            db.clear_post_images(post_id)
+            background_tasks.add_task(_generate_for_post_id, post_id)
+
+    if linkedin_title.strip():
+        updates["linkedin_title"] = linkedin_title.strip()
+    if linkedin_article_body.strip():
+        updates["linkedin_article_body"] = linkedin_article_body.strip()
+
+    if updates:
+        db.update_post_fields(post_id, **updates)
+
+    return RedirectResponse(f"/posts/{post_id}?saved=1", status_code=302)
+
+
+@app.post("/posts/{post_id}/upload-image")
+async def post_upload_image(post_id: int, request: Request, image: UploadFile = File(...)):
+    if r := _guard(request): return r
+    content = await image.read()
+    if not content:
+        return RedirectResponse(f"/posts/{post_id}?error=Empty+file", status_code=302)
+    mime = image.content_type or "image/jpeg"
+    db.set_post_image(post_id, content, mime)
+    db.set_post_image_locked(post_id, True)
+    return RedirectResponse(f"/posts/{post_id}?saved=1", status_code=302)
+
+
+@app.post("/posts/{post_id}/reset-locks")
+def post_reset_locks(post_id: int, request: Request):
+    if r := _guard(request): return r
+    db.reset_post_locks(post_id)
+    return RedirectResponse(f"/posts/{post_id}?saved=1", status_code=302)
 
 
 @app.post("/posts/{post_id}/set-project")

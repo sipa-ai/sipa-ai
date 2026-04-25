@@ -470,8 +470,22 @@ def _execute_tool(name: str, inp: dict) -> str:
             return f"Error creating post: {e}"
     if name == "update_post":
         post_id = inp.pop("id")
-        db.update_post_fields(post_id, **inp)
-        return f"Post {post_id} updated."
+        post = db.get_post(post_id)
+        if not post:
+            return f"No post found with id={post_id}."
+        warnings = []
+        if "caption" in inp and post.get("caption_locked"):
+            warnings.append("caption is locked (manually edited in portal) — skipped")
+            inp.pop("caption")
+        if "image_prompt" in inp and post.get("image_locked"):
+            warnings.append("image_prompt is locked (image manually uploaded in portal) — skipped")
+            inp.pop("image_prompt")
+        if inp:
+            db.update_post_fields(post_id, **inp)
+        msg = f"Post {post_id} updated." if inp else f"Post {post_id}: no fields updated."
+        if warnings:
+            msg += f" Warning: {'; '.join(warnings)}."
+        return msg
 
     # ── Agent management ──────────────────────────────────────────────────
     if name == "create_agent":
