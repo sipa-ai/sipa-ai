@@ -195,8 +195,8 @@ def _build_router_tools(owner_name: str) -> list:
                 "model": {"type": "string", "description": "Model ID — default: claude-sonnet-4-6"},
                 "tool_set": {
                     "type": "string",
-                    "enum": ["default", "content_writer"],
-                    "description": "Tool set for the agent. 'default' = read-only (tasks, posts). 'content_writer' = can also create and update posts.",
+                    "enum": ["default", "content_writer", "website"],
+                    "description": "Tool set for the agent. 'default' = read-only (tasks, posts). 'content_writer' = can also create and update posts. 'website' = can clone, edit, and push to the configured GitHub website repo.",
                 },
             },
             "required": ["name", "description", "system_prompt", "model"],
@@ -335,6 +335,10 @@ _CONTENT_TOOLS = [
                     "enum": ["realistic", "artistic"],
                     "description": "realistic=photographic, artistic=illustrated/creative (static and carousel only)",
                 },
+                "channels": {
+                    "type": "string",
+                    "description": "Comma-separated publish destinations. Valid values: instagram, linkedin_post, linkedin_article. Default: instagram. Examples: 'instagram', 'linkedin_post', 'instagram,linkedin_post'",
+                },
                 "n_slides": {"type": "integer"},
                 "video_prompt": {"type": "string", "description": "Video generation prompt (reel only, Veo). Cinematic, 9:16, 8s."},
                 "reel_generator": {"type": "string", "enum": ["veo", "canva"], "description": "Which generator to use for reels. Default: veo."},
@@ -366,22 +370,24 @@ _CONTENT_TOOLS = [
     },
     {
         "name": "update_post",
-        "description": "Update one or more fields of an existing post by date.",
+        "description": "Update one or more fields of an existing post by id. Use get_all_posts to find the id.",
         "input_schema": {
             "type": "object",
             "properties": {
-                "date": {"type": "string"},
+                "id": {"type": "integer", "description": "Post id (from get_all_posts)"},
+                "date": {"type": "string", "description": "New date ISO YYYY-MM-DD (to move the post)"},
                 "format": {"type": "string", "enum": ["static", "carousel", "reel"]},
                 "caption": {"type": "string"},
                 "theme": {"type": "string"},
                 "image_prompt": {"type": "string"},
                 "image_style_type": {"type": "string", "enum": ["realistic", "artistic"]},
                 "pillar": {"type": "string"},
+                "channels": {"type": "string", "description": "Comma-separated: instagram, linkedin_post, linkedin_article"},
                 "video_prompt": {"type": "string", "description": "Video generation prompt (reel only, Veo)"},
                 "reel_generator": {"type": "string", "enum": ["veo", "canva"], "description": "Which generator to use for reels."},
                 "canva_template_id": {"type": "string", "description": "Canva design ID (when reel_generator=canva)."},
             },
-            "required": ["date"],
+            "required": ["id"],
         },
     },
     {
@@ -409,10 +415,64 @@ _DEFAULT_AGENT_TOOLS = [
     },
 ]
 
+_WEBSITE_TOOLS = [
+    {
+        "name": "website_list_files",
+        "description": (
+            "Clone the configured website repo and return the file tree. "
+            "Call this first to start a website editing session. "
+            "Returns a session_id to pass to all subsequent website tools."
+        ),
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "website_read_file",
+        "description": "Read a file from the website repo.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string", "description": "Session ID from website_list_files"},
+                "path": {"type": "string", "description": "File path relative to repo root"},
+            },
+            "required": ["session_id", "path"],
+        },
+    },
+    {
+        "name": "website_edit_file",
+        "description": (
+            "Write new content to a file in the website repo. "
+            "Returns a text diff (HTML stripped) showing what changed. "
+            "Show this diff to the user, then call website_commit."
+        ),
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "path": {"type": "string", "description": "File path relative to repo root"},
+                "content": {"type": "string", "description": "Full new file content"},
+            },
+            "required": ["session_id", "path", "content"],
+        },
+    },
+    {
+        "name": "website_commit",
+        "description": "Commit and push all edited files to GitHub, then clean up the session.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "session_id": {"type": "string"},
+                "message": {"type": "string", "description": "Commit message describing the change"},
+            },
+            "required": ["session_id", "message"],
+        },
+    },
+]
+
 # Map tool_set values (stored in the agents DB table) to their tool lists.
 _TOOL_SETS: dict[str, list] = {
     "default": _DEFAULT_AGENT_TOOLS,
     "content_writer": _CONTENT_TOOLS,
+    "website": _WEBSITE_TOOLS,
 }
 
 
@@ -450,18 +510,40 @@ def _execute_tool(name: str, inp: dict) -> str:
         db.update_brand_guidelines(inp["content"])
         return "Brand guidelines updated."
     if name == "create_post":
+        new_channels = set((inp.get("channels") or "instagram").split(","))
+        existing = db.get_posts_for_date(inp["date"])
+        conflicts = [
+            f"id={p['id']} channels={p['channels']}"
+            for p in existing
+            if new_channels & set((p.get("channels") or "instagram").split(","))
+        ]
         try:
             post_id = db.create_post(**inp)
-            return (
-                f"Post created (id={post_id}, date={inp['date']}, format={inp['format']}). "
-                "It is saved as a draft and can be reviewed and approved in the portal."
-            )
+            msg = f"Post created (id={post_id}, date={inp['date']}, format={inp['format']})."
+            if conflicts:
+                msg += f" Warning: existing post(s) for this date share the same channel: {', '.join(conflicts)}."
+            msg += " Saved as draft — review and approve in the portal."
+            return msg
         except Exception as e:
             return f"Error creating post: {e}"
     if name == "update_post":
-        date_val = inp.pop("date")
-        db.update_post_fields(date_val, **inp)
-        return f"Post for {date_val} updated."
+        post_id = inp.pop("id")
+        post = db.get_post(post_id)
+        if not post:
+            return f"No post found with id={post_id}."
+        warnings = []
+        if "caption" in inp and post.get("caption_locked"):
+            warnings.append("caption is locked (manually edited in portal) — skipped")
+            inp.pop("caption")
+        if "image_prompt" in inp and post.get("image_locked"):
+            warnings.append("image_prompt is locked (image manually uploaded in portal) — skipped")
+            inp.pop("image_prompt")
+        if inp:
+            db.update_post_fields(post_id, **inp)
+        msg = f"Post {post_id} updated." if inp else f"Post {post_id}: no fields updated."
+        if warnings:
+            msg += f" Warning: {'; '.join(warnings)}."
+        return msg
 
     # ── Agent management ──────────────────────────────────────────────────
     if name == "create_agent":
@@ -530,6 +612,37 @@ def _execute_tool(name: str, inp: dict) -> str:
             return f"No project named '{inp['project_name']}' found."
         db.set_post_project(post_row["id"], project["id"])
         return f"Post {inp['date']} assigned to project '{project['name']}'."
+
+    # ── Website editing tools ─────────────────────────────────────────────
+    if name == "website_list_files":
+        from services import github as gh
+        try:
+            tmpdir = gh.clone()
+            files = gh.list_files(tmpdir)
+            return json.dumps({"session_id": tmpdir, "files": files})
+        except Exception as e:
+            return f"Error: {e}"
+
+    if name == "website_read_file":
+        from services import github as gh
+        return gh.read_file(inp["session_id"], inp["path"])
+
+    if name == "website_edit_file":
+        from services import github as gh
+        old = gh.read_file(inp["session_id"], inp["path"])
+        gh.write_file(inp["session_id"], inp["path"], inp["content"])
+        diff = gh.text_diff(old, inp["content"], inp["path"])
+        return f"File updated.\n\nText changes:\n{diff}"
+
+    if name == "website_commit":
+        from services import github as gh
+        try:
+            result = gh.commit_and_push(inp["session_id"], inp["message"])
+        except Exception as e:
+            result = f"Git error: {e}"
+        finally:
+            gh.cleanup(inp["session_id"])
+        return result
 
     # ── Async-only tools (not available in all contexts) ──────────────────
     if name in ("send_approved_email", "send_post_image", "delegate_to_agent"):

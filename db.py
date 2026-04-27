@@ -226,17 +226,53 @@ def init_db():
             )
         """)
 
+        # Migrate: copy linkedin_caption → caption where caption is empty (if column still exists)
+        cur.execute("""
+            DO $$
+            BEGIN
+              IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_name = 'posts' AND column_name = 'linkedin_caption'
+              ) THEN
+                UPDATE posts
+                SET caption = linkedin_caption
+                WHERE linkedin_caption IS NOT NULL
+                  AND linkedin_caption != ''
+                  AND (caption IS NULL OR caption = '');
+              END IF;
+            END $$
+        """)
+
+        # Migrate: drop linkedin_caption column (now unified into caption)
+        cur.execute("""
+            ALTER TABLE posts DROP COLUMN IF EXISTS linkedin_caption
+        """)
+
+        # Migrate: drop UNIQUE constraint on posts.date (allow multiple posts per date)
+        cur.execute("""
+            DO $$
+            BEGIN
+              IF EXISTS (
+                SELECT 1 FROM information_schema.table_constraints
+                WHERE table_name = 'posts' AND constraint_name = 'posts_date_key'
+              ) THEN
+                ALTER TABLE posts DROP CONSTRAINT posts_date_key;
+              END IF;
+            END $$
+        """)
+
         # Migrate existing posts table — add new columns if they don't exist
         for col, definition in [
             ("image_style_type",    "TEXT DEFAULT 'realistic'"),
             ("image_model_used",    "TEXT"),
             ("image_prompt_sent",   "TEXT"),
             ("video_prompt",        "TEXT"),
+            ("image_locked",        "BOOLEAN DEFAULT FALSE"),
+            ("caption_locked",      "BOOLEAN DEFAULT FALSE"),
             ("video_bytes",         "BYTEA"),
             ("video_mime_type",     "TEXT"),
             ("video_generated_at",  "TIMESTAMP"),
             ("channels",            "TEXT DEFAULT 'instagram'"),
-            ("linkedin_caption",    "TEXT"),
             ("linkedin_title",      "TEXT"),
             ("linkedin_article_body", "TEXT"),
             ("linkedin_posted_at",  "TIMESTAMP"),
@@ -986,7 +1022,7 @@ def get_all_posts():
             SELECT po.id, po.date, po.format, po.pillar, po.theme, po.image_prompt, po.image_style,
                    po.image_style_type, po.image_model_used, po.image_prompt_sent,
                    po.n_slides, po.caption, po.image_mime_type, po.video_prompt,
-                   po.channels, po.linkedin_caption, po.linkedin_title,
+                   po.channels, po.linkedin_title,
                    po.project_id,
                    p.name AS project_name,
                    (po.linkedin_article_body IS NOT NULL) AS has_linkedin_article,
@@ -1008,14 +1044,25 @@ def get_post(post_id: int):
 
 
 def get_post_for_date(date_str: str):
-    """Return today's approved, unsent post including image bytes."""
+    """Return all approved, unsent posts for a date including image bytes."""
     with get_conn() as conn:
         cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cur.execute("""
             SELECT * FROM posts
             WHERE date = %s AND approved = TRUE AND posted_at IS NULL
         """, (date_str,))
-        return cur.fetchone()
+        return cur.fetchall()
+
+
+def get_posts_for_date(date_str: str):
+    """Return all posts for a date (metadata only, no binary data)."""
+    with get_conn() as conn:
+        cur = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("""
+            SELECT id, date, format, pillar, theme, channels, approved
+            FROM posts WHERE date = %s
+        """, (date_str,))
+        return cur.fetchall()
 
 
 def get_post_meta_by_date(date_str: str):
@@ -1032,20 +1079,20 @@ def get_post_meta_by_date(date_str: str):
         return cur.fetchone()
 
 
-def update_post_fields(date_str: str, **fields):
-    """Update any combination of text fields on a post by date."""
+def update_post_fields(post_id: int, **fields):
+    """Update any combination of text fields on a post by id."""
     allowed = {"caption", "theme", "image_prompt", "image_style_type", "pillar", "n_slides",
-               "image_style", "format", "video_prompt", "channels",
+               "image_style", "format", "video_prompt", "channels", "date",
                "linkedin_caption", "linkedin_title", "linkedin_article_body", "project_id",
                "reel_generator", "canva_template_id"}
     updates = {k: v for k, v in fields.items() if k in allowed and v is not None}
     if not updates:
         return
     set_clause = ", ".join(f"{k} = %s" for k in updates)
-    values = list(updates.values()) + [date_str]
+    values = list(updates.values()) + [post_id]
     with get_conn() as conn:
         cur = conn.cursor()
-        cur.execute(f"UPDATE posts SET {set_clause} WHERE date = %s", values)
+        cur.execute(f"UPDATE posts SET {set_clause} WHERE id = %s", values)
 
 
 def set_post_project(post_id: int, project_id):
@@ -1165,16 +1212,31 @@ def set_post_approved(post_id: int, approved: bool):
         cur.execute("UPDATE posts SET approved = %s WHERE id = %s", (approved, post_id))
 
 
+def set_post_image_locked(post_id: int, locked: bool):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE posts SET image_locked = %s WHERE id = %s", (locked, post_id))
+
+
+def set_post_caption_locked(post_id: int, locked: bool):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("UPDATE posts SET caption_locked = %s WHERE id = %s", (locked, post_id))
+
+
+def reset_post_locks(post_id: int):
+    with get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE posts SET image_locked = FALSE, caption_locked = FALSE WHERE id = %s",
+            (post_id,),
+        )
+
+
 def mark_post_sent(post_id: int):
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("UPDATE posts SET posted_at = NOW() WHERE id = %s", (post_id,))
-
-
-def set_post_linkedin_caption(post_id: int, caption: str):
-    with get_conn() as conn:
-        cur = conn.cursor()
-        cur.execute("UPDATE posts SET linkedin_caption = %s WHERE id = %s", (caption, post_id))
 
 
 def set_post_linkedin_article(post_id: int, title: str, body: str):
@@ -1215,19 +1277,19 @@ def upsert_slide(post_id: int, slide: dict):
 
 def create_post(date, format, pillar, theme, image_prompt=None,
                 image_style=None, image_style_type="realistic",
-                n_slides=None, slides=None, video_prompt=None,
+                n_slides=None, slides=None, video_prompt=None, channels=None,
                 reel_generator="veo", canva_template_id=None) -> int:
     with get_conn() as conn:
         cur = conn.cursor()
         cur.execute("""
             INSERT INTO posts (date, format, pillar, theme, image_prompt, image_style,
-                               image_style_type, n_slides, video_prompt,
+                               image_style_type, n_slides, video_prompt, channels,
                                reel_generator, canva_template_id)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             ON CONFLICT (date) DO NOTHING
             RETURNING id
         """, (date, format, pillar, theme, image_prompt, image_style,
-              image_style_type, n_slides, video_prompt,
+              image_style_type, n_slides, video_prompt, channels or "instagram",
               reel_generator, canva_template_id))
         row = cur.fetchone()
         if row is None:

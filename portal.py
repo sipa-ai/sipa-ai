@@ -4,7 +4,7 @@ import logging
 import os
 
 import db
-from fastapi import BackgroundTasks, FastAPI, Form, Request
+from fastapi import BackgroundTasks, FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from starlette.middleware.sessions import SessionMiddleware
@@ -529,6 +529,61 @@ def post_detail(post_id: int, request: Request):
     })
 
 
+@app.post("/posts/{post_id}/edit-content")
+async def post_edit_content(
+    post_id: int, request: Request, background_tasks: BackgroundTasks,
+    caption: str = Form(""),
+    image_prompt: str = Form(""),
+    linkedin_title: str = Form(""),
+    linkedin_article_body: str = Form(""),
+):
+    if r := _guard(request): return r
+    post = db.get_post(post_id)
+    if not post:
+        return HTMLResponse("Post not found", status_code=404)
+
+    updates = {}
+    if caption.strip():
+        updates["caption"] = caption.strip()
+        db.set_post_caption_locked(post_id, True)
+
+    if image_prompt.strip():
+        prompt_changed = image_prompt.strip() != (post.get("image_prompt") or "").strip()
+        updates["image_prompt"] = image_prompt.strip()
+        if prompt_changed and not post.get("image_locked"):
+            db.clear_post_images(post_id)
+            background_tasks.add_task(_generate_for_post_id, post_id)
+
+    if linkedin_title.strip():
+        updates["linkedin_title"] = linkedin_title.strip()
+    if linkedin_article_body.strip():
+        updates["linkedin_article_body"] = linkedin_article_body.strip()
+
+    if updates:
+        db.update_post_fields(post_id, **updates)
+
+    return RedirectResponse(f"/posts/{post_id}?saved=1", status_code=302)
+
+
+@app.post("/posts/{post_id}/upload-image")
+async def post_upload_image(post_id: int, request: Request, image: UploadFile = File(...)):
+    if r := _guard(request): return r
+    content = await image.read()
+    if not content:
+        return RedirectResponse(f"/posts/{post_id}?error=Empty+file", status_code=302)
+    mime = image.content_type or "image/jpeg"
+    db.set_post_image(post_id, content, mime)
+    db.set_post_image_locked(post_id, True)
+    return RedirectResponse(f"/posts/{post_id}?saved=1", status_code=302)
+
+
+@app.post("/posts/{post_id}/reset-locks")
+def post_reset_locks(post_id: int, request: Request):
+    if r := _guard(request): return r
+    db.reset_post_locks(post_id)
+    return RedirectResponse(f"/posts/{post_id}?saved=1", status_code=302)
+
+
 @app.post("/posts/{post_id}/set-project")
 def post_set_project(post_id: int, request: Request, project_id: str = Form(...)):
     if r := _guard(request): return r
@@ -588,7 +643,7 @@ def update_style(post_id: int, request: Request, background_tasks: BackgroundTas
     if r := _guard(request): return r
     post = db.get_post(post_id)
     if post and post["image_style_type"] != image_style_type:
-        db.update_post_fields(str(post["date"]), image_style_type=image_style_type)
+        db.update_post_fields(post_id, image_style_type=image_style_type)
         db.clear_post_images(post_id)
         background_tasks.add_task(_generate_for_post_id, post_id)
     return RedirectResponse(f"/posts/{post_id}", status_code=302)
@@ -693,7 +748,7 @@ async def _generate_linkedin_for_post(post_id: int):
     try:
         if "linkedin_post" in channels:
             caption = await generate_linkedin_caption(dict(post))
-            db.set_post_linkedin_caption(post_id, caption)
+            db.set_post_caption(post_id, caption)
             logger.info("Generated LinkedIn caption for post %d", post_id)
         if "linkedin_article" in channels:
             article = await generate_linkedin_article(dict(post))
@@ -716,8 +771,8 @@ async def _do_post_linkedin(post_id: int):
     image_bytes = bytes(post["image_bytes"]) if post.get("image_bytes") else None
     mime_type = post.get("image_mime_type") or "image/jpeg"
     try:
-        if "linkedin_post" in channels and post.get("linkedin_caption"):
-            result = create_post(account_id, post["linkedin_caption"], image_bytes, mime_type)
+        if "linkedin_post" in channels and post.get("caption"):
+            result = create_post(account_id, post["caption"], image_bytes, mime_type)
             if result:
                 db.mark_post_linkedin_sent(post_id)
                 logger.info("Posted to LinkedIn for post %d: %s", post_id, result)
@@ -904,6 +959,9 @@ def settings_page(request: Request):
             "gemini_image_model",
             "gemini-3.1-flash-image-preview,gemini-2.5-flash-image",
         ),
+        "github_repo": db.get_setting("github_repo", ""),
+        "github_token": db.get_setting("github_token", ""),
+        "github_branch": db.get_setting("github_branch", "main"),
         "saved": request.query_params.get("saved") == "1",
     })
 
@@ -946,6 +1004,21 @@ def settings_save_owner_name(request: Request, owner_name: str = Form("")):
 def settings_save_gemini_models(request: Request, gemini_image_model: str = Form("")):
     if r := _guard(request): return r
     db.set_setting("gemini_image_model", gemini_image_model.strip())
+    return RedirectResponse("/settings?saved=1", status_code=302)
+
+
+@app.post("/settings/github")
+def settings_save_github(
+    request: Request,
+    github_repo: str = Form(""),
+    github_token: str = Form(""),
+    github_branch: str = Form("main"),
+):
+    if r := _guard(request): return r
+    db.set_setting("github_repo", github_repo.strip())
+    if github_token.strip():
+        db.set_setting("github_token", github_token.strip())
+    db.set_setting("github_branch", github_branch.strip() or "main")
     return RedirectResponse("/settings?saved=1", status_code=302)
 
 

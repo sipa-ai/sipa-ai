@@ -129,6 +129,38 @@
     </form>
   </div>
 
+  <!-- GitHub website repo -->
+  <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 mb-6">
+    <h3 class="text-sm font-semibold text-stone-700 mb-1">GitHub website repo</h3>
+    <p class="text-xs text-stone-400 mb-4">
+      Connect a GitHub repo so the website agent can clone, edit, and push changes.
+      Use a Personal Access Token (PAT) with <code class="font-mono">repo</code> scope.
+    </p>
+    <form method="post" action="/settings/github" class="space-y-3">
+      <div class="flex items-center gap-3">
+        <label class="w-20 text-xs text-stone-500 shrink-0">Repo</label>
+        <input type="text" name="github_repo" value="{{ github_repo }}"
+          placeholder="username/my-website"
+          class="flex-1 border border-stone-200 rounded-lg text-sm px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400">
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="w-20 text-xs text-stone-500 shrink-0">Token</label>
+        <input type="password" name="github_token"
+          value="{{ github_token }}"
+          placeholder="ghp_…"
+          class="flex-1 border border-stone-200 rounded-lg text-sm px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400">
+      </div>
+      <div class="flex items-center gap-3">
+        <label class="w-20 text-xs text-stone-500 shrink-0">Branch</label>
+        <input type="text" name="github_branch" value="{{ github_branch or 'main' }}"
+          placeholder="main"
+          class="w-32 border border-stone-200 rounded-lg text-sm px-3 py-2 font-mono focus:outline-none focus:ring-1 focus:ring-amber-400">
+      </div>
+      <button type="submit"
+        class="bg-stone-800 text-white text-sm px-4 py-2 rounded-lg hover:bg-stone-700 transition">Save</button>
+    </form>
+  </div>
+
   <!-- Email accounts link -->
   <div class="bg-white rounded-xl border border-stone-200 shadow-sm p-6 mb-6">
     <h3 class="text-sm font-semibold text-stone-700 mb-1">Email accounts</h3>
