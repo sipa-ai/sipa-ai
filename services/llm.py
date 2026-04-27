@@ -12,19 +12,24 @@ logger = logging.getLogger(__name__)
 
 _BASE_DIR = Path(__file__).parent.parent
 _RETRY_DELAYS = [10, 30, 60]
+_RATE_LIMIT_DELAYS = [60, 120, 180]
 
 anthropic_client = AsyncAnthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 
 async def call_claude(**kwargs):
-    """Call Anthropic API with automatic retry on 529 overload."""
-    for attempt, delay in enumerate(_RETRY_DELAYS, start=1):
+    """Call Anthropic API with automatic retry on 529 overload and 429 rate limit."""
+    delays = list(zip(_RETRY_DELAYS, _RATE_LIMIT_DELAYS))
+    for attempt, (overload_delay, rate_delay) in enumerate(delays, start=1):
         try:
             return await anthropic_client.messages.create(**kwargs)
         except anthropic.APIStatusError as e:
             if e.status_code == 529:
-                logger.warning("Anthropic overloaded (attempt %d), retrying in %ds", attempt, delay)
-                await asyncio.sleep(delay)
+                logger.warning("Anthropic overloaded (attempt %d), retrying in %ds", attempt, overload_delay)
+                await asyncio.sleep(overload_delay)
+            elif e.status_code == 429:
+                logger.warning("Anthropic rate limit hit (attempt %d), retrying in %ds", attempt, rate_delay)
+                await asyncio.sleep(rate_delay)
             else:
                 raise
     return await anthropic_client.messages.create(**kwargs)
