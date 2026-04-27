@@ -6,6 +6,7 @@ import os
 from datetime import datetime, timezone
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import formataddr
 
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request
@@ -160,7 +161,7 @@ def send_email_to_contact(
     service = build("gmail", "v1", credentials=creds)
 
     msg = MIMEMultipart("alternative")
-    msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
+    msg["To"] = formataddr((to_name, to_email)) if to_name else to_email
     msg["Subject"] = subject
     msg.attach(MIMEText(body, "plain"))
 
@@ -200,7 +201,7 @@ def send_reply_to_contact(
 
     reply_subject = subject if subject.lower().startswith("re:") else f"Re: {subject}"
     msg = MIMEMultipart("alternative")
-    msg["To"] = f"{to_name} <{to_email}>" if to_name else to_email
+    msg["To"] = formataddr((to_name, to_email)) if to_name else to_email
     msg["Subject"] = reply_subject
     msg["In-Reply-To"] = in_reply_to_message_id
     msg["References"] = in_reply_to_message_id
