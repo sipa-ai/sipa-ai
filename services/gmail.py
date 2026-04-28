@@ -151,6 +151,7 @@ def send_email_to_contact(
     summary: str = "",
     contact_id: int = None,
     task_id: int = None,
+    cc: str = "",
 ) -> str | None:
     """Send an email via Gmail. Returns provider_message_id or None on error."""
     creds = _get_credentials(account)
@@ -163,6 +164,8 @@ def send_email_to_contact(
     msg = MIMEMultipart("alternative")
     msg["To"] = formataddr((to_name, to_email)) if to_name else to_email
     msg["Subject"] = subject
+    if cc:
+        msg["Cc"] = cc
     msg.attach(MIMEText(body, "plain"))
 
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
@@ -190,6 +193,7 @@ def send_reply_to_contact(
     summary: str = "",
     contact_id: int = None,
     task_id: int = None,
+    cc: str = "",
 ) -> str | None:
     """Send a threaded Gmail reply."""
     creds = _get_credentials(account)
@@ -205,6 +209,8 @@ def send_reply_to_contact(
     msg["Subject"] = reply_subject
     msg["In-Reply-To"] = in_reply_to_message_id
     msg["References"] = in_reply_to_message_id
+    if cc:
+        msg["Cc"] = cc
     msg.attach(MIMEText(body, "plain"))
 
     raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()

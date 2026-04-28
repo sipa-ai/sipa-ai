@@ -174,6 +174,7 @@ def _build_router_tools(owner_name: str) -> list:
                 "contact_id": {"type": "integer", "description": "Contact ID if known (optional)"},
                 "task_id": {"type": "integer", "description": "Task ID to update email_status to sent (optional)"},
                 "reply_to_inbox_id": {"type": "integer", "description": "inbox_id of the received email to reply to (optional, for threaded replies)"},
+                "cc": {"type": "string", "description": "Comma-separated CC email addresses (optional)"},
             },
             "required": ["to_email", "to_name", "subject", "body", "summary"],
         },
@@ -695,6 +696,7 @@ async def _send_approved_email(inp: dict) -> str:
     reply_inbox_id = inp.get("reply_to_inbox_id")
     msg_id = None
 
+    cc = inp.get("cc", "")
     if reply_inbox_id:
         inbox_msg = db.get_inbox_message(reply_inbox_id)
         if not (inbox_msg and inbox_msg["thread_id"]):
@@ -711,6 +713,7 @@ async def _send_approved_email(inp: dict) -> str:
             inp.get("summary", ""),
             inp.get("contact_id"),
             inp.get("task_id"),
+            cc,
         )
     else:
         msg_id = await asyncio.to_thread(
@@ -722,6 +725,7 @@ async def _send_approved_email(inp: dict) -> str:
             inp.get("summary", ""),
             inp.get("contact_id"),
             inp.get("task_id"),
+            cc,
         )
 
     if not msg_id:

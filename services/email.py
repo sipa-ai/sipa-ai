@@ -15,6 +15,7 @@ def send_email_to_contact(
     summary: str = "",
     contact_id: int = None,
     task_id: int = None,
+    cc: str = "",
 ) -> str | None:
     """Send an email, routing to Gmail or Outlook based on account resolution."""
     account = db.get_account_for_contact(contact_id)
@@ -29,7 +30,7 @@ def send_email_to_contact(
     else:
         logger.error("Unknown email provider: %s", provider)
         return None
-    return _send(account, to_email, to_name, subject, body, summary, contact_id, task_id)
+    return _send(account, to_email, to_name, subject, body, summary, contact_id, task_id, cc)
 
 
 def send_reply_to_contact(
@@ -43,6 +44,7 @@ def send_reply_to_contact(
     summary: str = "",
     contact_id: int = None,
     task_id: int = None,
+    cc: str = "",
 ) -> str | None:
     """Send a threaded reply, routing to the provider that received the original."""
     # Use the provider that received the original email to keep the thread consistent
@@ -68,7 +70,7 @@ def send_reply_to_contact(
         logger.error("Unknown email provider: %s", provider)
         return None
     return _send(account, to_email, to_name, subject, body, thread_id,
-                 in_reply_to_message_id, summary, contact_id, task_id)
+                 in_reply_to_message_id, summary, contact_id, task_id, cc)
 
 
 def fetch_all_inboxes(max_results: int = 50) -> list[dict]:

@@ -114,22 +114,26 @@ def send_email_to_contact(
     summary: str = "",
     contact_id: int = None,
     task_id: int = None,
+    cc: str = "",
 ) -> str | None:
     """Send an email via Microsoft Graph. Returns the Graph message ID or None on error."""
     token = _get_access_token(account)
     if not token:
         return None
 
-    payload = {
-        "message": {
-            "subject": subject,
-            "body": {"contentType": "Text", "content": body},
-            "toRecipients": [
-                {"emailAddress": {"address": to_email, "name": to_name or to_email}}
-            ],
-        },
-        "saveToSentItems": True,
+    message: dict = {
+        "subject": subject,
+        "body": {"contentType": "Text", "content": body},
+        "toRecipients": [
+            {"emailAddress": {"address": to_email, "name": to_name or to_email}}
+        ],
     }
+    if cc:
+        message["ccRecipients"] = [
+            {"emailAddress": {"address": addr.strip()}}
+            for addr in cc.split(",") if addr.strip()
+        ]
+    payload = {"message": message, "saveToSentItems": True}
 
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
     resp = requests.post(f"{GRAPH_BASE}/me/sendMail", json=payload, headers=headers, timeout=30)
@@ -162,6 +166,7 @@ def send_reply_to_contact(
     summary: str = "",
     contact_id: int = None,
     task_id: int = None,
+    cc: str = "",
 ) -> str | None:
     """Send a threaded Outlook reply using the original Graph message ID."""
     token = _get_access_token(account)
@@ -176,10 +181,16 @@ def send_reply_to_contact(
         # Can't thread reply to a synthetic ID — fall back to new message
         logger.warning("Outlook: synthetic message ID, sending as new email instead of reply")
         return send_email_to_contact(account, to_email, to_name, subject, body,
-                                     summary, contact_id, task_id)
+                                     summary, contact_id, task_id, cc)
 
+    reply_message: dict = {"body": {"contentType": "Text", "content": body}}
+    if cc:
+        reply_message["ccRecipients"] = [
+            {"emailAddress": {"address": addr.strip()}}
+            for addr in cc.split(",") if addr.strip()
+        ]
     reply_payload = {
-        "message": {"body": {"contentType": "Text", "content": body}},
+        "message": reply_message,
         "comment": body,
     }
     resp = requests.post(
